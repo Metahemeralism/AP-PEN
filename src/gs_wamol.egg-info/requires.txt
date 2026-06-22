@@ -1,0 +1,13 @@
+jax
+jaxlib
+flax
+optax
+orbax-checkpoint
+ml-collections
+numpy
+scipy
+matplotlib
+
+[dev]
+pytest
+pytest-cov

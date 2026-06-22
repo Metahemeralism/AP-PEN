@@ -1,132 +1,113 @@
 """
-Pricing model physics.
+Gibson-Schwartz Model 2: closed-form futures pricer.
 
-Currently implements Black-Scholes / local-vol formulas used by the
-SABR-synthetic calibration experiments.
+Implements the exponential-affine futures price derived analytically:
 
-TODO: Extend / replace with Gibson-Schwartz (1990) two-factor commodity
-      model: closed-form futures price and the corresponding PDE residual
-      under the GS convenience-yield dynamics.
+    F_hat(tau, S, delta) = S * exp[ B(tau) * delta + A(tau) ]
+
+with
+
+    B(tau) = -(1 - e^{-kappa tau}) / kappa
+
+    A(tau) = ( r - alpha_Q + (1/2) sigma2^2 / kappa^2 - sigma1 sigma2 rho / kappa ) tau
+             + (1/4) sigma2^2 (1 - e^{-2 kappa tau}) / kappa^3
+             + ( alpha_Q kappa + sigma1 sigma2 rho - sigma2^2 / kappa ) (1 - e^{-kappa tau}) / kappa^2
+
+These coefficients were derived from the GS-PDE-tau via the affine ansatz and
+verified term-by-term against Schwartz (1997) Model 2, eqs. (18)-(20), with
+alpha_Q identified with Schwartz's alpha-hat.
+
+All functions are pure and JAX-jittable.
 """
 
+from __future__ import annotations
+from dataclasses import dataclass
+import jax
 import jax.numpy as jnp
-from jax import grad, vmap
-import jax.scipy.stats as jss
-
-eps = 1e-15
-
-N       = jss.norm.cdf
-N_prime = jss.norm.pdf
-N_inv   = jss.norm.ppf
 
 
-# ---------------------------------------------------------------------------
-# Numerical safeguards
-# ---------------------------------------------------------------------------
+@dataclass(frozen=True)
+class GSParams:
+    """Risk-neutral Gibson-Schwartz Model 2 parameters.
 
-def bound(x):
-    return jnp.maximum(1e-15, x)
+    Attributes
+    ----------
+    r        : constant risk-free rate
+    kappa    : convenience-yield mean-reversion speed (kappa > 0)
+    alpha_Q  : risk-neutral long-run convenience yield (alpha^Q)
+    sigma1   : spot volatility
+    sigma2   : convenience-yield volatility
+    rho      : correlation between the two Brownian motions, in (-1, 1)
 
-
-# ---------------------------------------------------------------------------
-# Black-Scholes building blocks
-# ---------------------------------------------------------------------------
-
-def d1_(s, k, r, sigma, tau):
-    s, k, tau, sigma = bound(s), bound(k), bound(tau), bound(sigma)
-    return (jnp.log(s / k) + (r + sigma * sigma / 2) * tau) / (sigma * jnp.sqrt(tau))
-
-
-def d2_(s, k, r, sigma, tau):
-    s, k, tau, sigma = bound(s), bound(k), bound(tau), bound(sigma)
-    return d1_(s, k, r, sigma, tau) - sigma * jnp.sqrt(tau)
-
-
-def bs(s, k, tau, r, cp, sigma):
-    """Black-Scholes call/put price."""
-    s, k, tau, sigma = bound(s), bound(k), bound(tau), bound(sigma)
-    d1 = d1_(s, k, r, sigma, tau)
-    d2 = d2_(s, k, r, sigma, tau)
-    return cp * s * N(cp * d1) - cp * k * jnp.exp(-r * tau) * N(cp * d2)
-
-
-def black(fwd, k, tau, r, cp, sigma):
-    """Black-76 price (forward as underlying)."""
-    fwd, k, tau, sigma = bound(fwd), bound(k), bound(tau), bound(sigma)
-    return bs(fwd, k, tau, 0.0, cp, sigma) * jnp.exp(-r * tau)
-
-
-def bs_vega(s, k, tau, r, sigma):
-    return s * jnp.sqrt(tau) * N_prime(d1_(s, k, r, sigma, tau))
-
-
-def bs_iv(C, s, k, tau, cp, r=0.0,
-          tol=1e-15, tol_vega=1e-15, ini=0.5, thr=2.0, max_it=20):
-    """Newton-Raphson implied vol inversion."""
-    sigma = ini * jnp.ones_like(C)
-    for _ in range(max_it):
-        diff = bs(s, k, tau, r, cp, sigma) - C
-        vega = bs_vega(s, k, tau, r, sigma)
-        end = jnp.logical_or(jnp.abs(diff) < tol, vega < tol_vega)
-        sigma = (sigma - diff / vega) * jnp.logical_not(end) + sigma * end
-    return jnp.minimum(jnp.maximum(sigma, 0.0), thr)
-
-
-# ---------------------------------------------------------------------------
-# Local-volatility (Dupire / Gatheral total-variance form)
-# ---------------------------------------------------------------------------
-
-def lv_var(vol, tau):
-    return (vol ** 2) * tau
-
-
-def lv_fwd_sqr(k, w, tau, dk_w, d2k_w, dt_w):
-    """Local-vol squared in forward log-strike / total-variance coordinates.
-
-    k := ln(K/F), w := sigma_BS^2 * tau
-    Reference: https://quant.stackexchange.com/questions/16343
+    Notes
+    -----
+    alpha_Q is the *risk-neutral* long-run level, alpha_Q = alpha_P - sigma2 lambda2 / kappa.
+    For pricing only alpha_Q enters; the physical alpha_P and lambda2 are needed
+    only when simulating the physical-measure paths (see data/paths.py).
     """
-    w = bound(w)
-    A = -k / w * dk_w + 0.25 * (-0.25 - 1 / w + (k ** 2) / (w ** 2)) * (dk_w ** 2)
-    return dt_w / (1.0 + A + 0.5 * d2k_w)
+    r: float
+    kappa: float
+    alpha_Q: float
+    sigma1: float
+    sigma2: float
+    rho: float
 
 
-def lv_fwd_pde(lv_fwd_sq, k, d2k_v, dt_v):
-    """Dupire PDE residual in forward coordinates."""
-    return dt_v - 0.5 * lv_fwd_sq * (k ** 2) * d2k_v
+def B_coeff(tau: jnp.ndarray, kappa: float) -> jnp.ndarray:
+    """B(tau) = -(1 - e^{-kappa tau}) / kappa.
+
+    Limit-safe at tau -> 0 (B -> 0) and at kappa -> 0 (B -> -tau) is handled
+    by the standard expression; kappa is assumed > 0 throughout.
+    """
+    return -(1.0 - jnp.exp(-kappa * tau)) / kappa
 
 
-def lv_sqr(s, k, r, v, tau, dk_v, d2k_v, dtau_v):
-    """Local-vol squared from BS implied vol and its derivatives."""
-    A = v ** 2 + 2.0 * v * tau * (dtau_v + r * k * dk_v)
-    y = jnp.log(k / (jnp.exp(r * tau) * s))
-    B = (1 - k * y / v * dk_v) ** 2
-    C = k * v * tau * (dk_v - 0.25 * k * v * tau * (dk_v ** 2) + k * d2k_v)
-    D = B + C + (B + C == 0.0) * eps
-    return A / D
+def A_coeff(tau: jnp.ndarray, p: GSParams) -> jnp.ndarray:
+    """A(tau) for the Gibson-Schwartz Model 2 closed form.
+
+    Written in the three-group form matching Schwartz (1997) eq. (20):
+      - a tau-linear group,
+      - a (1 - e^{-2 kappa tau}) group,
+      - a (1 - e^{-kappa tau}) group.
+    """
+    kappa = p.kappa
+    s1s2rho = p.sigma1 * p.sigma2 * p.rho
+    s2sq = p.sigma2 ** 2
+
+    lin = (p.r - p.alpha_Q
+           + 0.5 * s2sq / kappa ** 2
+           - s1s2rho / kappa) * tau
+
+    two_kappa = 0.25 * s2sq * (1.0 - jnp.exp(-2.0 * kappa * tau)) / kappa ** 3
+
+    one_kappa = (p.alpha_Q * kappa + s1s2rho - s2sq / kappa) \
+        * (1.0 - jnp.exp(-kappa * tau)) / kappa ** 2
+
+    return lin + two_kappa + one_kappa
 
 
-# ---------------------------------------------------------------------------
-# Automatic-differentiation helpers
-# ---------------------------------------------------------------------------
-
-def derivatives(fn, x):
-    """Compute (dK, d2K, dT) of fn w.r.t. inputs x = [K, T]."""
-    def f(x):   return fn(x)[0]
-    def f_dK(x): return grad(f)(x)[0]
-
-    dx  = vmap(grad(f), 0)(x)
-    d2x = vmap(grad(f_dK), 0)(x)
-    dx1, d2x1, dx2 = dx.T[0], d2x.T[0], dx.T[1]
-    return dx1, d2x1, dx2
+def log_futures(tau: jnp.ndarray,
+                S: jnp.ndarray,
+                delta: jnp.ndarray,
+                p: GSParams) -> jnp.ndarray:
+    """ln F_hat(tau, S, delta) = ln S + B(tau) delta + A(tau)."""
+    return jnp.log(S) + B_coeff(tau, p.kappa) * delta + A_coeff(tau, p)
 
 
-def call_derivatives(fn, x, s_0, r):
-    """Compute (dK, d2K, dT) of the BS call price implied by fn's vol output."""
-    def f(x):    return bs(s_0, x.T[0], x.T[1], r, 1, fn(x).flatten())[0]
-    def f_dK(x): return grad(f)(x)[0]
+def futures(tau: jnp.ndarray,
+            S: jnp.ndarray,
+            delta: jnp.ndarray,
+            p: GSParams) -> jnp.ndarray:
+    """F_hat(tau, S, delta) = S exp[B(tau) delta + A(tau)]."""
+    return jnp.exp(log_futures(tau, S, delta, p))
 
-    dx  = vmap(grad(f), 0)(x)
-    d2x = vmap(grad(f_dK), 0)(x)
-    dx1, d2x1, dx2 = dx.T[0], d2x.T[0], dx.T[1]
-    return dx1, d2x1, dx2
+
+# Convenience: vectorised term-structure pricer.
+# Given a single (S, delta) state and a vector of maturities tau, return the
+# whole futures curve. vmap over the tau axis.
+def term_structure(taus: jnp.ndarray,
+                   S: jnp.ndarray,
+                   delta: jnp.ndarray,
+                   p: GSParams) -> jnp.ndarray:
+    """Futures curve F(tau_i) for a fixed state (S, delta) across maturities."""
+    return jax.vmap(lambda tau: futures(tau, S, delta, p))(taus)
