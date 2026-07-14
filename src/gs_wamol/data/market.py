@@ -9,3 +9,20 @@ TODO: Implement loaders for real futures data:
         (log-futures panel + maturities + dates), minus the synthetic
         'delta_true' ground truth which real data does not have
 """
+from dataclasses import dataclass
+
+
+@dataclass
+class data_loader:
+    def __init__(self, data_path: str):
+        self.data_path = data_path
+    
+    def load(self):
+        
+        pass
+
+    def preprocess(self):
+        pass
+        
+        
+    pass

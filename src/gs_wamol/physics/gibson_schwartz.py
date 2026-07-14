@@ -12,12 +12,6 @@ with
     A(tau) = ( r - alpha_Q + (1/2) sigma2^2 / kappa^2 - sigma1 sigma2 rho / kappa ) tau
              + (1/4) sigma2^2 (1 - e^{-2 kappa tau}) / kappa^3
              + ( alpha_Q kappa + sigma1 sigma2 rho - sigma2^2 / kappa ) (1 - e^{-kappa tau}) / kappa^2
-
-These coefficients were derived from the GS-PDE-tau via the affine ansatz and
-verified term-by-term against Schwartz (1997) Model 2, eqs. (18)-(20), with
-alpha_Q identified with Schwartz's alpha-hat.
-
-All functions are pure and JAX-jittable.
 """
 
 from __future__ import annotations
@@ -55,9 +49,6 @@ class GSParams:
 
 def B_coeff(tau: jnp.ndarray, kappa: float) -> jnp.ndarray:
     """B(tau) = -(1 - e^{-kappa tau}) / kappa.
-
-    Limit-safe at tau -> 0 (B -> 0) and at kappa -> 0 (B -> -tau) is handled
-    by the standard expression; kappa is assumed > 0 throughout.
     """
     return -(1.0 - jnp.exp(-kappa * tau)) / kappa
 
@@ -102,8 +93,6 @@ def futures(tau: jnp.ndarray,
     return jnp.exp(log_futures(tau, S, delta, p))
 
 
-# Convenience: vectorised term-structure pricer.
-# Given a single (S, delta) state and a vector of maturities tau, return the
 # whole futures curve. vmap over the tau axis.
 def term_structure(taus: jnp.ndarray,
                    S: jnp.ndarray,
