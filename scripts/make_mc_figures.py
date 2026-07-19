@@ -9,11 +9,11 @@ that the methodology text needs to assert:
   mc3  why the inversion is well posed      -- delta maps affinely to curve slope
 
 Run:  python scripts/make_mc_figures.py
-Reads notebooks/mc_data.pkl, writes notebooks/figures/methodology/{pdf,png}.
+Reads data/mc_data.pkl, writes notebooks/figures/methodology/{pdf,png}.
 
 PROVENANCE RULE (do not relax this)
 -----------------------------------
-Every plotted mark must come from notebooks/mc_data.pkl -- the pickle written by
+Every plotted mark must come from data/mc_data.pkl -- the pickle written by
 monte_carlo.ipynb -- or be a plain aggregation of it (percentile, median, log,
 difference, stride). This script must NOT:
 
@@ -48,7 +48,7 @@ from gs_wamol.utils.thesis_style import (
 )
 
 REPO = Path(__file__).resolve().parents[1]
-DATA = REPO / "notebooks" / "mc_data.pkl"
+DATA = REPO / "data" / "mc_data.pkl"
 
 # One path is followed through every figure so the reader can build a mental
 # thread across the chapter. Picking it once, here, is the whole point.
