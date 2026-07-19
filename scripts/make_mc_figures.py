@@ -9,7 +9,7 @@ that the methodology text needs to assert:
   mc3  why the inversion is well posed      -- delta maps affinely to curve slope
 
 Run:  python scripts/make_mc_figures.py
-Reads data/mc_data.pkl, writes notebooks/figures/methodology/{pdf,png}.
+Reads data/input/synthetic/mc_data.pkl, writes figures/monte_carlo_sim/{pdf,png}.
 
 PROVENANCE RULE (do not relax this)
 -----------------------------------
@@ -48,7 +48,7 @@ from gs_wamol.utils.thesis_style import (
 )
 
 REPO = Path(__file__).resolve().parents[1]
-DATA = REPO / "data" / "mc_data.pkl"
+DATA = REPO / "data" / "input" / "synthetic" / "mc_data.pkl"
 
 # One path is followed through every figure so the reader can build a mental
 # thread across the chapter. Picking it once, here, is the whole point.

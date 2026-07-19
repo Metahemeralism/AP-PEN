@@ -57,7 +57,7 @@ def get_pinn_config() -> ml_collections.ConfigDict:
     return cfg
 
 
-def get_dcpinn_config() -> ml_collections.ConfigDict:
+def get_acpinn_config() -> ml_collections.ConfigDict:
     cfg = get_mlp_config()
-    cfg.loss_str = "DCPINN"
+    cfg.loss_str = "ACPINN"
     return cfg

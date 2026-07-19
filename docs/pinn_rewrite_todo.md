@@ -88,7 +88,7 @@ validation.
       the eval call.
 - [ ] `init_l_ws` / `init_params_sa`: component set changes (add `e_b` if using
       soft IC; per-point shapes follow the new mesh vs. data-manifold split).
-- [ ] Loss-component lists (`loss_fn_lb` MLP/PINN/DCPINN): re-derive which terms
+- [ ] Loss-component lists (`loss_fn_lb` MLP/PINN/ACPINN): re-derive which terms
       belong to each variant under the two-net setup.
 - [ ] Update `pinn_implementation_provenance.md` once the rewrite lands (the
       ⚠️ OUTSTANDING section can then move to "done").
@@ -97,7 +97,7 @@ validation.
 
 ## Removed: the `configs/` directory
 
-`configs/{mlp,pinn,dcpinn}.py` were deleted (2026-07-19, commit `5d9bec8` has the
+`configs/{mlp,pinn,acpinn}.py` were deleted (2026-07-19, commit `5d9bec8` has the
 originals — `git show 5d9bec8:configs/pinn.py`). Each was a four-line
 `ml_collections` shim re-exporting `get_*_config()` from
 `src/gs_wamol/utils/config.py`, existing to be passed as

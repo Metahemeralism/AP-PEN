@@ -1,0 +1,14 @@
+# --- OS / editor junk ---
+.DS_Store
+
+# --- Python build & cache artefacts ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# --- Model artefacts (regenerable by re-running the notebooks) ---
+# Inputs under data/input/ ARE tracked: the WTI panel is not reproducible from
+# code, and mc_data.pkl is what every result in the thesis is keyed to.
+data/output/

@@ -1,8 +1,8 @@
-# `PINN_implementation.ipynb` vs. the original DC-PINN notebook
+# `PINN_implementation.ipynb` vs. the original AC-PINN notebook
 
 What was carried over unchanged, what was adapted, what's new, what got deleted,
 and what's still a stub. "Original" = the colleague's SABR / Dupire-local-vol
-DC-PINN calibration notebook this was ported from.
+AC-PINN calibration notebook this was ported from.
 
 ---
 
@@ -93,7 +93,7 @@ explicit that those coefficients are exact and verified against Schwartz
 |---|---|---|
 | `MLP`/`ModifiedMLP` forced `x = nn.softplus(x)` on the output | Softplus removed | The original output was a volatility (must be positive). `delta_hat` (convenience yield) is not sign-constrained — nothing in the model requires `delta_t >= 0`. |
 | `error()` computed Black-Scholes/Dupire/SABR terms | Rewritten around the GS closed form and the PDE derivation | See "New" below — the *shape* of the function (return `(err_dict, metrics_dict)`) is unchanged, but every formula inside it is GS's, not SABR's. |
-| `run_experiment` wrote one shared `results_latest.pkl` | Writes `results_{loss_str}.pkl` | The original silently overwrote that file on the second call in the same cell (e.g. MLP's history lost as soon as DCPINN ran). Keying by `loss_str` was a one-line fix to an existing footgun, not a new feature. |
+| `run_experiment` wrote one shared `results_latest.pkl` | Writes `results_{loss_str}.pkl` | The original silently overwrote that file on the second call in the same cell (e.g. MLP's history lost as soon as ACPINN ran). Keying by `loss_str` was a one-line fix to an existing footgun, not a new feature. |
 | `run_experiment(config)` re-sampled data via `get_data(config.pts_num, ...)` each call | `run_experiment(config, data)` takes data explicitly | The GS dataset is a fixed loaded panel, not something to redraw per experiment the way the SABR sampler was. |
 | `init_l_ws` / `init_params_sa` keyed on `x_train`/`x_mesh` shapes | Reshaped to `error()`'s actual component shapes: `e_acc (n,K)`, `e_pde (n,K)`, `e_arb_cac (n,K)`, `e_arb_rcac (n,K)`, `e_delta_floor (n,)` | Mechanical consequence of the new loss terms, same dict-of-arrays pattern as the original. |
 
@@ -159,17 +159,17 @@ All three are marked `TODO` in the notebook — placeholders, not settled values
 
 - **$\mathcal{L}_b$**: undefined in the source PDF itself.
 - **Collocation mesh**: `e_pde` currently reuses the observed `(date, maturity)`
-  data grid as its collocation points. The original DC-PINN used a separate,
+  data grid as its collocation points. The original AC-PINN used a separate,
   denser `x_mesh` independent of `x_train` for its PDE term — an equivalent
   here (extra `(t,S,tau)` points beyond the observed panel) would give
   `e_pde` its own resolution instead of being tied to data density.
 - **`STORAGE_COST_U`, `DELTA_MIN`, `DELTA_MAX`**: see table above.
 - **`PATH_ID`**: inverts a single simulated path end to end. Real-data
   loading is `gs_wamol/data/market.py`, currently unimplemented.
-- **DCPINN training quality**: in the 3000-epoch smoke test, all three
+- **ACPINN training quality**: in the 3000-epoch smoke test, all three
   inequality terms sat at exactly `0.0` (never violated, given the band
-  width above) — so they contributed no gradient, yet DCPINN's `e_acc` still
+  width above) — so they contributed no gradient, yet ACPINN's `e_acc` still
   tracked *worse* than plain PINN's. Likely the gradient-norm rebalancing
-  ("Whack-a-mole", which only runs for `loss_str == "DCPINN"`) is diluting
+  ("Whack-a-mole", which only runs for `loss_str == "ACPINN"`) is diluting
   `e_acc`'s effective weight by rebalancing against three structurally-inactive
-  terms. Not fixed — worth investigating before trusting DCPINN results.
+  terms. Not fixed — worth investigating before trusting ACPINN results.

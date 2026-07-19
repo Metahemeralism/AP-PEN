@@ -1,4 +1,4 @@
-"""Synthetic and market data generation for the GS DC-PINN.
+"""Synthetic and market data generation for the GS AC-PINN.
 
 The Gibson-Schwartz Monte Carlo simulator is built from three layers:
     paths    : P-measure (S_t, delta_t) path simulation

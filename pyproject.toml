@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "gs-wamol"
 version = "0.1.0"
-description = "Gibson-Schwartz DC-PINN calibration with WAMOL loss balancing"
+description = "Gibson-Schwartz AC-PINN calibration with WAMOL loss balancing"
 requires-python = ">=3.10"
 dependencies = [
     "jax",

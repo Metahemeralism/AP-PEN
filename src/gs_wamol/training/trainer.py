@@ -96,12 +96,12 @@ def calibration(config, data, tx, s_0: float, r: float):
     print(f"{config.loss_str} calibration ──────────────>")
     for epoch in range(config.num_epochs):
 
-        # Whack 2 (every 100 epochs for DCPINN)
-        if config.loss_str == "DCPINN" and epoch % 100 == 0:
+        # Whack 2 (every 100 epochs for ACPINN)
+        if config.loss_str == "ACPINN" and epoch % 100 == 0:
             l_ws = update_loss_weights(state, data, l_ws, state_sa, get_params_sa)
 
         # Whack 1 (offset by 50 epochs, every 100)
-        if config.loss_str == "DCPINN" and (epoch + 50) % 100 == 0:
+        if config.loss_str == "ACPINN" and (epoch + 50) % 100 == 0:
             state_sa = _train_step_sa(epoch, state, data, l_ws, state_sa)
 
         state, loss, metric, state_sa = train_step(state, data, l_ws, state_sa)
