@@ -6,6 +6,60 @@ DC-PINN calibration notebook this was ported from.
 
 ---
 
+## ⚠️ OUTSTANDING: notebook is out of sync with `mathematical_derivations-6.pdf` (2026-07-16)
+
+The derivation was revised from `-5.pdf` (7 pp.) to `-6.pdf` (12 pp.). The new
+version adds a **Section 6 "Network parameterisation"** and two page-4 remarks
+that **overturn the two central design choices the notebook currently rests
+on**. What's implemented now is exactly the degenerate "penalised least
+squares" case the new derivation was written to rule out. Diagnosis only — the
+notebook was **not** changed (user is doing the rewrite). Nothing below this
+section reflects `-6.pdf`; it documents the `-5.pdf` implementation as built.
+
+### 🔴 Blocking — architectural
+
+| # | Notebook now | `-6.pdf` requires | Source |
+|---|---|---|---|
+| 1 | **One** network → `delta_hat`; closed form supplies prices | **Two** networks trained jointly (eq. 30): surface `F̂_θ(S,δ,τ)→ℝ⁺` **and** path `δ̂_φ(t)→ℝ`. Surface net is what the PDE acts on; path net enters only via the data loss. | §6, eq. 30 |
+| 2 | `e_pde` differentiates the **closed-form composite** `S·exp(B·δ̂+A)` | Closed form **excluded from training** — composing it with `δ̂` "would render `L̂_f` and `L̂_b` identically zero and reduce the method to penalised least squares." `L_f` must act on the *free* surface net. | §6 "Role of the closed form"; §10 eq. 44 |
+| 3 | `delta_hat_fn(t, S)` — takes **spot as input** | "`δ̂_φ` takes **t alone** as input. Admitting `S_t`… would let the network launder price information into the yield estimate." | §6 p.4 remark 1 |
+| 4 | `e_pde` reuses the **data (t,S,τ) grid**, δ = `δ̂(t)` | `L_f` on a **separate (S,δ,τ) collocation mesh**, δ an *independent coordinate*; "the latent path `δ̂_φ` does not appear." | §10 eq. 44–45 |
+
+**Empirical fingerprint already observed:** in the last smoke test `e_pde` sat
+at ~`1e-8` throughout — not convergence, but the exact degeneracy §6 predicts
+(you can't get PDE-residual signal by differentiating the PDE's own closed-form
+solution).
+
+### 🟠 Now specified in `-6.pdf` (were stubs/guesses)
+
+- **`L_b` initial-condition loss** — now given (§11): either soft
+  `(F̂_θ(S,δ,0)−S)²` on the τ=0 slice (eq. 46), **or** the hard output transform
+  `F̂_θ = S·exp(τ·N_θ(S,δ,τ))` (eq. 47), which also gives ℝ⁺ positivity and makes
+  `ln F̂` linear in the raw output, and then `L_b` is dropped. (Recommended.)
+- **Surface-net positivity** — the softplus removal is correct for the *path*
+  net but the *surface* net needs ℝ⁺; eq. 47 handles it.
+- **`δ_min = −0.3`** is now fixed by the paper (eq. 39). Notebook currently has
+  `DELTA_MIN = -3.0` — off by 10×, so the floor never fires. `δmax` (rcac wedge)
+  still has no numeric value in the paper.
+
+### 🟡 Refinements
+
+- **WamOL balancing must use per-category *support*** (§12.2, eq. 55–56):
+  gradient scales on `ψ_t=ψ_cac=ψ_rcac=(θ,φ)`, `ψ_b=ψ_f=θ`, `ψ_δ-floor=φ`.
+  Current `update_loss_weights` averages over the full param vector, which the
+  paper warns dilutes the scalar path-net weight "by one to two orders of
+  magnitude."
+- **Carry penalties** should price through `F̂_θ(x_i)`, not the closed form.
+- **Online/time-decay ζ** (§9, §12.3) — optional; `ζ≡1` static case is fine.
+
+### ✅ Still valid under `-6.pdf`
+Network building blocks (`Dense`/`MLP`/`ModifiedMLP`), optax setup, WamOL loop
+skeleton, `get_data` loader, and the closed form in `gibson_schwartz.py` — now
+used only for data-gen + validation benchmark (§5 "Role of the closed form"),
+not in the objective.
+
+---
+
 ## Kept as-is (problem-agnostic)
 
 Nothing about these referred to volatility, options, or SABR in the first
