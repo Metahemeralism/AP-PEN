@@ -4,7 +4,7 @@ Loss-function construction and initialisation helpers.
 Three model variants:
   MLP     – data fit only
   PINN    – data fit + PDE residual
-  DCPINN  – data fit + PDE residual + no-arbitrage constraints
+  ACPINN  – data fit + PDE residual + no-arbitrage constraints
 """
 
 import jax.numpy as jnp
@@ -19,14 +19,14 @@ from gs_wamol.losses.components import error, adj
 INIT_L_WS = {
     "MLP":    {"e_acc": 1.0},
     "PINN":   {"e_acc": 1.0, "e_pde": 1.0},
-    "DCPINN": {"e_acc": 1.0, "e_pde": 1.0,
+    "ACPINN": {"e_acc": 1.0, "e_pde": 1.0,
                "e_arb_dK": 1.0, "e_arb_d2K": 1.0, "e_arb_dT": 1.0},
 }
 
 LOSS_COMPONENTS = {
     "MLP":    ["e_acc"],
     "PINN":   ["e_acc", "e_pde"],
-    "DCPINN": ["e_acc", "e_pde", "e_arb_dK", "e_arb_d2K", "e_arb_dT"],
+    "ACPINN": ["e_acc", "e_pde", "e_arb_dK", "e_arb_d2K", "e_arb_dT"],
 }
 
 
@@ -39,7 +39,7 @@ def init_params_sa(loss_str: str, data):
     return {
         "MLP":    {"e_acc": train_ones},
         "PINN":   {"e_acc": train_ones, "e_pde": mesh_ones},
-        "DCPINN": {"e_acc": train_ones, "e_pde": mesh_ones,
+        "ACPINN": {"e_acc": train_ones, "e_pde": mesh_ones,
                    "e_arb_dK": mesh_ones, "e_arb_d2K": mesh_ones,
                    "e_arb_dT": mesh_ones},
     }[loss_str]

@@ -227,7 +227,7 @@ def use_thesis_style(usetex: bool = False) -> None:
 # Helpers
 # ---------------------------------------------------------------------------
 
-FIGURE_DIR = Path(__file__).resolve().parents[3] / "notebooks" / "figures" / "methodology"
+FIGURE_DIR = Path(__file__).resolve().parents[3] / "figures" / "monte_carlo_sim"
 
 
 def save(fig, name: str, directory: Path | None = None) -> Path:

@@ -1,4 +1,4 @@
-"""Pricing-model physics for the GS DC-PINN.
+"""Pricing-model physics for the GS AC-PINN.
 
 `gibson_schwartz.py` is the Gibson-Schwartz Model 2 closed-form futures pricer
 (the Q-measure pricing layer of the synthetic simulator). `constraints.py` holds
