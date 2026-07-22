@@ -39,8 +39,10 @@ from __future__ import annotations
 import pickle
 from pathlib import Path
 
+import matplotlib.patheffects as pe
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.ticker import MaxNLocator
 
 from gs_wamol.utils.thesis_style import (
     C_DELTA, C_SPOT, DIV_BLUE_RED, INK, SEQ_BLUE,
@@ -138,9 +140,11 @@ def fig_state_paths(d):
 
     # The mean-reversion timescale tau* = 1/kappa is the identifiability-critical
     # constant of the whole thesis, so it is annotated rather than left implicit.
+    # The LINE stays muted (it is context), but its LABEL does not: 8pt type at
+    # 3.5:1 contrast is under the AA floor, and this is the smallest text here.
     ax_d.axvline(1.0 / kappa, color=INK["muted"], lw=0.7, ls=":", zorder=3)
     direct_label(ax_d, 1.0 / kappa, ax_d.get_ylim()[1], r"$\tau^{*}=1/\kappa$",
-                 INK["muted"], dx=4, dy=-8, va="top")
+                 INK["secondary"], dx=4, dy=-8, va="top")
 
     fig.tight_layout()
     return fig
@@ -163,6 +167,9 @@ def fig_observation_layer(d):
     taus, tgrid = d["taus"], d["t_grid"]
     logF_clean = np.log(d["F_clean"][HERO_PATH])  # (N+1, K) one path, all dates
     logF_obs = d["log_F_obs"][HERO_PATH]          # (N+1, K)
+    # Read from the pickle, never hardcoded: a mislabelled noise level is worse
+    # than a crash, because nothing in the output signals that it is wrong.
+    noise_std = d["noise_std"]
 
     # Eight observation dates spread over the horizon. Date is an ORDERED
     # variable, so it gets the sequential ramp: darker = later. The reader
@@ -182,7 +189,7 @@ def fig_observation_layer(d):
 
     ax_c.set_ylabel(r"Log futures price $\log \hat{F}(\tau)$")
     for ax, tag, title in ((ax_c, "a", "Closed form (exact)"),
-                           (ax_o, "b", r"Observed, $\sigma_\varepsilon = 0.01$")):
+                           (ax_o, "b", rf"Observed, $\sigma_\varepsilon = {noise_std:g}$")):
         ax.set_xlabel(r"Maturity $\tau$ (years)")
         ax.set_title(title, color=INK["secondary"])
         panel_tag(ax, tag)
@@ -197,15 +204,27 @@ def fig_observation_layer(d):
     # pair with different x-scales, so the curves render at different physical
     # widths and the eye reads a shape difference that is not in the data --
     # which would defeat the entire purpose of a side-by-side comparison.
+    # Padding is a FRACTION of the maturity span, not an absolute number of
+    # years, so a pickle with a different tau grid still gets label room that
+    # looks the same. The right pad is larger because it holds the date labels.
+    span = taus[-1] - taus[0]
+    # Ticks come from matplotlib's own "nice number" locator applied to the DATA
+    # range, then clipped so none lands in the label headroom -- a tick out there
+    # would imply the curves extend further than they do.
+    ticks = MaxNLocator(nbins=5, steps=[1, 2, 5, 10]).tick_values(taus[0], taus[-1])
+    ticks = ticks[(ticks >= taus[0]) & (ticks <= taus[-1])]
     for ax in (ax_c, ax_o):
-        ax.set_xlim(taus[0] - 0.03, taus[-1] + 0.30)
-        ax.set_xticks([0.2, 0.4, 0.6, 0.8, 1.0])
+        ax.set_xlim(taus[0] - 0.03 * span, taus[-1] + 0.30 * span)
+        ax.set_xticks(ticks)
     for j in (0, len(date_idx) - 1):
         i = date_idx[j]
         direct_label(ax_c, taus[-1], logF_clean[i, -1],
                      f"$t={tgrid[i]:.0f}$", shades[j], dx=5)
+    # Sits low-left where the earliest curve runs, so it needs the same white
+    # halo the direct labels get -- and readable ink, not the line grey.
     ax_c.annotate("darker = later date", xy=(0.02, 0.03), xycoords="axes fraction",
-                  fontsize=8, color=INK["muted"])
+                  fontsize=8, color=INK["secondary"],
+                  path_effects=[pe.withStroke(linewidth=2.2, foreground="white")])
 
     fig.tight_layout()
     return fig
@@ -243,9 +262,14 @@ def fig_identifiability(d):
     # function of the notebook's output, and re-running with a different seed
     # would silently change which states are shown. Striding is deterministic,
     # reproducible, and reads every path in the ensemble.
+    # The stride is OFFSET to start at HERO_PATH so the path followed through
+    # mc1 and mc2 is actually among the states shown here. A plain
+    # arange(0, M, 5) starts at 0 and skips 7 entirely, which quietly broke the
+    # cross-figure thread the chapter tells the reader to follow.
     M, N1 = delta.shape
-    pi = np.repeat(np.arange(0, M, 5), 8)                    # 20 paths
-    di = np.tile(np.linspace(0, N1 - 1, 8).astype(int), 20)  # 8 dates each
+    n_paths, n_dates = len(range(HERO_PATH, M, 5)), 8
+    pi = np.repeat(np.arange(HERO_PATH, M, 5), n_dates)
+    di = np.tile(np.linspace(0, N1 - 1, n_dates).astype(int), n_paths)
     dv = delta[pi, di]
 
     # Normalise delta about alpha_Q so 0.5 on the colormap lands exactly on the
@@ -260,11 +284,15 @@ def fig_identifiability(d):
         curve = logF_clean[p_i, d_i] - logF_clean[p_i, d_i, 0]
         ax_curve.plot(taus, curve, color=DIV_BLUE_RED(u), lw=0.6, alpha=0.75)
     ax_curve.axhline(0.0, color=INK["muted"], lw=0.7)
-    # Headroom so the topmost tick label never sits under the (a) panel tag.
-    # Needed because the data range here depends on which states get sampled --
-    # any change to the stride shifts it, so the padding is set relatively
-    # rather than as a hardcoded limit.
-    ax_curve.margins(y=0.10)
+    # Reserve an empty BAND above and below the curve envelope for the two regime
+    # labels, rather than letting matplotlib pad and then squeezing the text into
+    # whatever is left. The fan converges toward tau_1, so its extreme curves
+    # sweep upward across any label parked just under them -- a gap measured only
+    # at the right-hand edge does not stay a gap. Reserving a full band keeps the
+    # labels clear across their whole width, and the (a) tag clear of the ticks.
+    ends = logF_clean[pi, di, -1] - logF_clean[pi, di, 0]
+    band = 0.16 * (ends.max() - ends.min())   # ~2x an 8pt line at this figure size
+    ax_curve.set_ylim(ends.min() - band, ends.max() + band)
 
     ax_curve.set_xlabel(r"Maturity $\tau$ (years)")
     ax_curve.set_ylabel(r"$\log \hat{F}(\tau) - \log \hat{F}(\tau_1)$")
@@ -278,9 +306,15 @@ def fig_identifiability(d):
     # Getting this pairing backwards silently teaches the reader the wrong
     # mapping, so it is worth stating the direction explicitly rather than
     # trusting that the hex constants were typed in the right order.
-    direct_label(ax_curve, taus[-1], ax_curve.get_ylim()[1] * 0.72,
+    #
+    # Each label is centred in the band reserved for it above, so placement is
+    # DERIVED from the curve envelope rather than being a fraction of the axis.
+    # The old 0.72*ylim dropped the backwardation label straight into the dense
+    # red fan, because the fan is asymmetric -- it reaches further down than up,
+    # so the same fraction means different things at the two ends.
+    direct_label(ax_curve, taus[-1], ends.max() + band / 2,
                  r"contango ($\delta < \alpha^{\mathbb{Q}}$)", "#184f95", dx=-4, ha="right")
-    direct_label(ax_curve, taus[-1], ax_curve.get_ylim()[0] * 0.72,
+    direct_label(ax_curve, taus[-1], ends.min() - band / 2,
                  r"backwardation ($\delta > \alpha^{\mathbb{Q}}$)", "#a32020", dx=-4, ha="right")
 
     # -- (b) the slope-delta map, clean vs noisy ----------------------------
@@ -291,7 +325,7 @@ def fig_identifiability(d):
                      lw=0, label="with measurement noise")
     ax_slope.plot(np.sort(dv), slope_clean[np.argsort(dv)],
                   color=INK["primary"], lw=1.2, label="exact (closed form)")
-    ax_slope.axvline(alpha_Q, color=INK["muted"], lw=0.7, ls=":")
+    ax_slope.axvline(alpha_Q, color=INK["muted"], lw=0.7, ls=":")  # line: context
 
     ax_slope.set_xlabel(r"True convenience yield $\delta_t$")
     ax_slope.set_ylabel(r"Slope $\log \hat{F}(\tau_{12}) - \log \hat{F}(\tau_{1})$")
@@ -299,7 +333,7 @@ def fig_identifiability(d):
     ax_slope.legend(loc="upper right")
     panel_tag(ax_slope, "b")
     direct_label(ax_slope, alpha_Q, ax_slope.get_ylim()[0],
-                 r"$\alpha^{\mathbb{Q}}$", INK["muted"], dx=3, dy=6, va="bottom")
+                 r"$\alpha^{\mathbb{Q}}$", INK["secondary"], dx=3, dy=6, va="bottom")
 
     fig.tight_layout()
     return fig

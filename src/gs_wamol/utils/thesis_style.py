@@ -47,6 +47,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import matplotlib as mpl
+import matplotlib.patheffects as pe
 import matplotlib.pyplot as plt
 from matplotlib.colors import LinearSegmentedColormap
 
@@ -112,9 +113,23 @@ C_BASELINE = PALETTE["aqua"]    # the Kalman filter benchmark
 # Neutral ink ramp. Used for structure that is context rather than subject:
 # path ensembles, reference lines, grid, axis labels. Keeping these grey is what
 # lets the two accent hues actually carry meaning.
+#
+# Contrast ratios against white paper (WCAG; 4.5:1 is the AA floor for text at
+# these sizes). The two lower rungs are deliberately BELOW that floor -- they
+# are for INK, not for TYPE:
+#
+#   primary   17.4:1  text
+#   secondary  7.9:1  text
+#   muted      3.5:1  LINES ONLY -- fails AA, never set type in it
+#   faint      1.7:1  LINES ONLY -- ensemble paths, grid
+#
+# The distinction matters because a reference line at 3.5:1 reads fine (it is a
+# continuous 1px stroke the eye tracks), while 8pt glyphs at 3.5:1 do not --
+# thin strokes with gaps are exactly what low contrast destroys first. So a
+# muted axvline is correct; a muted annotation naming it is not.
 INK = {
     "primary": "#1a1a19",    # titles, axis labels
-    "secondary": "#52514e",  # tick labels, annotations
+    "secondary": "#52514e",  # tick labels, annotations -- lowest ink safe for text
     "muted": "#8a8983",      # reference lines, direct-label leader lines
     "faint": "#c9c8c2",      # ensemble paths, grid
 }
@@ -245,18 +260,27 @@ def save(fig, name: str, directory: Path | None = None) -> Path:
     return pdf_path
 
 
-def direct_label(ax, x, y, text, color, *, dx=6, dy=0, ha="left", va="center", size=8):
+def direct_label(ax, x, y, text, color, *, dx=6, dy=0, ha="left", va="center",
+                 size=8, halo=True):
     """Place a series label next to the line itself instead of in a legend box.
 
     A legend forces the reader to make a colour->name lookup for every glance.
     A label at the end of the line removes that indirection entirely, and it is
     what keeps the figure readable in greyscale, where the colour lookup fails.
     Reserve the legend for when lines are too dense to label in place.
+
+    `halo` strokes the glyphs with white underneath. In-place labels are placed
+    near the data by construction, so sooner or later a curve runs straight
+    through one -- and 8pt type crossed by a 1.4pt line is genuinely hard to
+    read. The halo is the standard publication fix: it buys legibility without
+    moving the label away from the thing it names, and without a legend box.
+    It is drawn UNDER the glyphs, so it never lightens the text itself.
     """
     ax.annotate(
         text, xy=(x, y), xycoords="data",
         xytext=(dx, dy), textcoords="offset points",
         color=color, ha=ha, va=va, fontsize=size,
+        path_effects=[pe.withStroke(linewidth=2.2, foreground="white")] if halo else None,
     )
 
 
