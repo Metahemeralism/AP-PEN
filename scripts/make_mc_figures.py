@@ -7,6 +7,8 @@ that the methodology text needs to assert:
   mc1  the two P-measure state processes    -- S_t diffuses, delta_t mean-reverts
   mc2  the observation layer                -- clean prices vs noisy quotes
   mc3  why the inversion is well posed      -- delta maps affinely to curve slope
+  mc4  the basis by maturity, small multiples -- one panel per tau, same diagram
+       repeated twelve times, shared axes, showing the band widening with tau
 
 Run:  python scripts/make_mc_figures.py
 Reads data/input/synthetic/mc_data.pkl, writes figures/monte_carlo_sim/{pdf,png}.
@@ -42,6 +44,8 @@ from pathlib import Path
 import matplotlib.patheffects as pe
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
 from matplotlib.ticker import MaxNLocator
 
 from gs_wamol.utils.thesis_style import (
@@ -100,7 +104,6 @@ def fig_state_paths(d):
                             # low-price section is visually squashed to nothing
     ax_s.set_xlabel("Time $t$ (years)")
     ax_s.set_ylabel(r"Spot price $S_t$")
-    ax_s.set_title(r"Geometric diffusion under $\mathbb{P}$", color=INK["secondary"])
     panel_tag(ax_s, "a")
     # Labels are placed at DIFFERENT x positions and pushed to opposite sides of
     # their lines. Anchoring both at the same t is what made them collide.
@@ -129,7 +132,6 @@ def fig_state_paths(d):
 
     ax_d.set_xlabel("Time $t$ (years)")
     ax_d.set_ylabel(r"Convenience yield $\delta_t$")
-    ax_d.set_title("Mean reversion under $\\mathbb{P}$", color=INK["secondary"])
     panel_tag(ax_d, "b")
     # Sits INSIDE the axes: an offset label at the far-right data edge is clipped
     # by bbox="tight", which trims to the axes rather than growing to fit it.
@@ -188,10 +190,8 @@ def fig_observation_layer(d):
         ax_o.plot(taus, logF_obs[i], color=colour, lw=0, marker="o", ms=2.6)
 
     ax_c.set_ylabel(r"Log futures price $\log \hat{F}(\tau)$")
-    for ax, tag, title in ((ax_c, "a", "Closed form (exact)"),
-                           (ax_o, "b", rf"Observed, $\sigma_\varepsilon = {noise_std:g}$")):
+    for ax, tag in ((ax_c, "a"), (ax_o, "b")):
         ax.set_xlabel(r"Maturity $\tau$ (years)")
-        ax.set_title(title, color=INK["secondary"])
         panel_tag(ax, tag)
     despine_shared_y(ax_o)
 
@@ -224,6 +224,13 @@ def fig_observation_layer(d):
     # halo the direct labels get -- and readable ink, not the line grey.
     ax_c.annotate("darker = later date", xy=(0.02, 0.03), xycoords="axes fraction",
                   fontsize=8, color=INK["secondary"],
+                  path_effects=[pe.withStroke(linewidth=2.2, foreground="white")])
+    # sigma_eps is a data fact (the pickle's own noise_std), not narrative, so it
+    # stays on the panel it applies to rather than moving to the caption -- a
+    # caption fixed at submission time would go stale if the pickle is ever
+    # regenerated with a different noise level.
+    ax_o.annotate(rf"$\sigma_\varepsilon = {noise_std:g}$", xy=(0.02, 0.03),
+                  xycoords="axes fraction", fontsize=8, color=INK["secondary"],
                   path_effects=[pe.withStroke(linewidth=2.2, foreground="white")])
 
     fig.tight_layout()
@@ -296,7 +303,6 @@ def fig_identifiability(d):
 
     ax_curve.set_xlabel(r"Maturity $\tau$ (years)")
     ax_curve.set_ylabel(r"$\log \hat{F}(\tau) - \log \hat{F}(\tau_1)$")
-    ax_curve.set_title("Curve shape is set by $\\delta$", color=INK["secondary"])
     panel_tag(ax_curve, "a")
     # Text, not colour, names the two regimes -- colour alone would be lost in
     # greyscale and to a colour-blind reader.
@@ -329,13 +335,93 @@ def fig_identifiability(d):
 
     ax_slope.set_xlabel(r"True convenience yield $\delta_t$")
     ax_slope.set_ylabel(r"Slope $\log \hat{F}(\tau_{12}) - \log \hat{F}(\tau_{1})$")
-    ax_slope.set_title("The map the PINN must invert", color=INK["secondary"])
     ax_slope.legend(loc="upper right")
     panel_tag(ax_slope, "b")
     direct_label(ax_slope, alpha_Q, ax_slope.get_ylim()[0],
                  r"$\alpha^{\mathbb{Q}}$", INK["secondary"], dx=3, dy=6, va="bottom")
 
     fig.tight_layout()
+    return fig
+
+
+
+# ---------------------------------------------------------------------------
+# Figure 4 -- the basis by maturity, one small-multiple panel per tau
+# ---------------------------------------------------------------------------
+def fig_basis_by_maturity(d):
+    """The log basis log(F/S), same diagram repeated at 4 representative maturities.
+
+    WHY 4, NOT ALL 12: the ensemble spread at a fixed date is |B(tau)| times the
+    spread of delta itself, and B(tau) = -(1-e^{-kappa tau})/kappa saturates
+    fast -- with kappa ~= 1.9 the mean-reversion timescale is tau* = 1/kappa
+    ~= 0.53y, well inside the 1-year contract grid. An earlier 12-panel version
+    of this figure showed that directly: panels past tau ~= 0.5 were visually
+    indistinguishable from each other, so eight of the twelve panels were
+    redundant ink repeating the same "already saturated" band width. Four
+    maturities -- shortest, near tau*, mid, longest -- carry the whole story
+    (narrow -> widening -> flat) without asking the reader to notice that panels
+    5-12 stopped changing.
+
+    SHAPES: taus (K,) = (12,); S, (M, N+1) = (100, 1001);
+            F_clean (M, N+1, K) = (100, 1001, 12); basis is a plain log-and-
+            difference of those two pickle outputs, not a new simulation.
+    """
+    t, taus = d["t_grid"], d["taus"]
+    S, F = d["S"], d["F_clean"]
+    basis = np.log(F) - np.log(S)[:, :, None]  # (M, N+1, K)
+    kappa = float(d["params_P"]["kappa"])
+    tau_star = 1.0 / kappa
+
+    # Indices into the 12-point tau grid: shortest, the maturity closest to
+    # tau* (the mean-reversion timescale -- the natural place for the band to
+    # stop widening), a mid maturity past that, and the longest quoted contract.
+    sel = [0, int(np.argmin(np.abs(taus - tau_star))), 8, len(taus) - 1]
+    sel = sorted(set(sel))
+
+    fig, axes = plt.subplots(
+        1, len(sel), figsize=figsize("full", ratio=0.30),
+        sharex=True, sharey=True,
+    )
+
+    # Shared y-limits computed ONCE across the selected maturities, not per
+    # panel. Autoscaling each panel independently would rescale away exactly
+    # the amplitude growth this figure exists to show -- the longest maturity
+    # would look no wider than the shortest, just re-zoomed.
+    sel_basis = basis[:, :, sel]
+    lo_all, hi_all = np.nanpercentile(sel_basis, [1, 99])
+    pad = 0.08 * (hi_all - lo_all)
+
+    for ax, k in zip(axes, sel):
+        b = basis[:, :, k]
+        ax.plot(t, b.T, color=INK["faint"], lw=0.3, alpha=0.6, zorder=1)
+        lo, hi = np.percentile(b, [5, 95], axis=0)
+        ax.fill_between(t, lo, hi, color=C_DELTA, alpha=0.16, lw=0, zorder=2)
+        ax.plot(t, np.median(b, axis=0), color=INK["secondary"], lw=0.8,
+                 ls="--", zorder=3)
+        ax.plot(t, b[HERO_PATH], color=C_DELTA, lw=1.0, zorder=4)
+        ax.axhline(0.0, color=INK["muted"], lw=0.5, ls=":", zorder=0)
+        ax.set_title(rf"$\tau={taus[k]:.2f}$", fontsize=8,
+                     color=INK["secondary"], pad=2)
+        ax.set_ylim(lo_all - pad, hi_all + pad)
+        ax.set_xlabel("$t$ (yrs)")
+
+    axes[0].set_ylabel(r"$\log(F_\tau/S_t)$")
+    for ax in axes[1:]:
+        ax.tick_params(labelleft=False)
+
+    # ONE legend for the whole row rather than direct labels repeated four
+    # times -- the encoding (grey ensemble / band / median / hero path) is
+    # identical in every panel, so it only needs to be stated once.
+    legend_elems = [
+        Line2D([0], [0], color=INK["faint"], lw=1.2, label=f"ensemble ($M={S.shape[0]}$)"),
+        Patch(facecolor=C_DELTA, alpha=0.16, label="5–95%"),
+        Line2D([0], [0], color=INK["secondary"], lw=0.8, ls="--", label="median"),
+        Line2D([0], [0], color=C_DELTA, lw=1.4, label="single path"),
+    ]
+    fig.legend(handles=legend_elems, loc="lower center", ncol=4,
+               bbox_to_anchor=(0.5, -0.06), frameon=False, fontsize=8)
+
+    fig.tight_layout(rect=(0, 0.10, 1, 1))
     return fig
 
 
@@ -346,6 +432,7 @@ def main():
         ("mc1_state_paths", fig_state_paths),
         ("mc2_observation_layer", fig_observation_layer),
         ("mc3_identifiability", fig_identifiability),
+        ("mc4_basis_by_maturity", fig_basis_by_maturity),
     ):
         fig = builder(d)
         path = save(fig, name)
