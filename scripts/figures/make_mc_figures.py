@@ -10,7 +10,7 @@ that the methodology text needs to assert:
   mc4  the basis by maturity, small multiples -- one panel per tau, same diagram
        repeated twelve times, shared axes, showing the band widening with tau
 
-Run:  python scripts/make_mc_figures.py
+Run:  python scripts/figures/make_mc_figures.py
 Reads data/input/synthetic/mc_data.pkl, writes figures/monte_carlo_sim/{pdf,png}.
 
 PROVENANCE RULE (do not relax this)
@@ -53,7 +53,7 @@ from gs_wamol.utils.thesis_style import (
     despine_shared_y, direct_label, figsize, panel_tag, save, use_thesis_style,
 )
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = Path(__file__).resolve().parents[2]
 DATA = REPO / "data" / "input" / "synthetic" / "mc_data.pkl"
 
 # One path is followed through every figure so the reader can build a mental
@@ -400,8 +400,9 @@ def fig_basis_by_maturity(d):
                  ls="--", zorder=3)
         ax.plot(t, b[HERO_PATH], color=C_DELTA, lw=1.0, zorder=4)
         ax.axhline(0.0, color=INK["muted"], lw=0.5, ls=":", zorder=0)
-        ax.set_title(rf"$\tau={taus[k]:.2f}$", fontsize=8,
-                     color=INK["secondary"], pad=2)
+        # Corner annotation, not a title -- no text sits above the axes box.
+        ax.annotate(rf"$\tau={taus[k]:.2f}$", xy=(0.06, 0.94), xycoords="axes fraction",
+                     color=INK["secondary"], ha="left", va="top", fontsize=8)
         ax.set_ylim(lo_all - pad, hi_all + pad)
         ax.set_xlabel("$t$ (yrs)")
 

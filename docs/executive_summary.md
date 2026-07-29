@@ -25,10 +25,12 @@ pricing PDE and stochastic dynamics.
    from *known* parameters and a *known* convenience-yield path — something
    real markets can never provide — so model performance can be scored
    against ground truth before touching real data.
-2. **Three models, increasing physics content:** a plain data-fitting network
+2. **Five models, increasing physics content:** a plain data-fitting network
    (MLP baseline), a PINN with an added consistency penalty on the pricing
-   ODE, and a "DCPINN" that adds a further penalty on the recovered path's
-   own stochastic dynamics.
+   ODE, an "AP-PINN" that adds a further penalty on the recovered path's own
+   stochastic dynamics (with and without automatic loss-channel balancing),
+   and a fifth variant that adds no-arbitrage (cash-and-carry) constraints
+   on top.
 3. **A classical Kalman filter baseline**, based on the standard
    literature approach (Krul, 2008), fit on ten years of real WTI crude
    futures data — both a sanity check and a like-for-like benchmark for the
@@ -36,10 +38,14 @@ pricing PDE and stochastic dynamics.
 
 ## Where things stand today
 
-- **On synthetic data, the PINN approach works.** All three models recover
-  the hidden convenience-yield path without collapsing; the most
-  physics-constrained model (DCPINN) is currently the best of the three
-  (lowest recovery error).
+- **On synthetic data, the PINN approach works.** All five models recover
+  the hidden convenience-yield path without collapsing; adding the pricing-ODE
+  penalty (PINN) is what delivers the big jump in accuracy over the plain
+  MLP baseline, and the more physics-constrained AP-PINN variants match or
+  slightly improve on that without giving any of it back — including the
+  variant with no-arbitrage constraints added on top, which costs almost
+  nothing in recovery accuracy while enforcing economic consistency the
+  simpler models don't.
 - **A real finding along the way, not just an engineering bug:** an earlier,
   more constrained model design collapsed during training, and digging into
   *why* showed the constraint itself was economically wrong — real WTI
