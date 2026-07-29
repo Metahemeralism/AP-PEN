@@ -32,12 +32,38 @@ on-disk layout, and the float32 precision gotcha.
 - **PINN.** `notebooks/PINN_implementation.ipynb` — drift net `Â_θ(τ)` +
   analytic `B(τ;κ)` + path net `δ̂_φ(t)`, GS parameters `ψ` learnable, `e_sde`
   restricted to update `α^ℙ` only (the fix for the variance-collapse failure
-  mode in §3.6). Three model variants (MLP/PINN/DCPINN-style) recover `δ_t`
-  on synthetic data without collapse; DCPINN is the best performer at 10k
-  epochs. Full narrative in §3.
-- **Figures.** Two-tier pipeline, tightened today: dedicated scripts
-  (`scripts/make_{mc,real_data,pinn}_figures.py`) write the thesis-ready
-  PDF+PNG pairs into `figures/`, styled via `gs_wamol.utils.thesis_style`.
+  mode in §3.6). The model is now named **AP-PINN** (not DCPINN/AC-PINN —
+  those are earlier names from this project's own past naming eras; DCPINN
+  was itself renamed to AP-PINN this session). Five variants now trained to
+  40k epochs on synthetic data, each a loss-channel superset of the last
+  (`e_data` ⊂ `+e_ode` ⊂ `+e_sde` ⊂ `+e_cac,e_rcac`), none collapsing:
+
+  | Variant | Loss channels | `δ̂` RMSE | `δ̂` corr |
+  |---|---|---|---|
+  | MLP | `e_data` | 0.384 | 0.979 |
+  | PINN | `+e_ode` | 0.049 | 0.980 |
+  | AP-PINN (nobal) | `+e_sde`, fixed λ=1 | 0.049 | 0.980 |
+  | **AP-PINN** | `+e_sde`, WamOL-balanced | **0.049** | **0.980** |
+  | AP-PINN (ARB) | `+e_cac,e_rcac` (no-arbitrage hinges) | 0.051 | 0.979 |
+
+  PINN and AP-PINN (nobal) are numerically near-identical by construction:
+  `e_sde`'s gradient is stop-gradiented to update only `α^ℙ`, so adding it
+  cannot move the drift net, path net, or any other `ψ` component. AP-PINN is
+  the current "final" pick (confirmed via Optuna hyperparameter search that
+  the vanilla-tuned defaults already used here are ≈ the tuned optimum on a
+  corrected, non-gameable `e_data` objective — see §3.9). The no-arbitrage
+  variant (AP-PINN ARB) costs almost nothing in recovery accuracy while
+  additionally enforcing cash-and-carry/reverse-cash-and-carry consistency.
+  A 20-path repeat-validation (independent MC noise draws, each refit from
+  scratch) confirms `σ₁`/`ρ` are structurally non-identifiable from the
+  futures term structure alone — they enter the closed-form `A(τ)` only as
+  the product `σ₁σ₂ρ` (§3.7) — tight std relative to bias across repeats
+  rules out this being a noise/undertraining artifact. Full narrative in §3.
+- **Figures.** Two-tier pipeline, tightened today: dedicated scripts, now
+  grouped together under `scripts/figures/`
+  (`make_{mc,real_data,pinn}_figures.py`), write the thesis-ready PDF+PNG
+  pairs into `figures/`, styled via `gs_wamol.utils.thesis_style` (also
+  restored today after being caught up in the same cleanup commit).
   Ad hoc model-comparison plots inside the notebooks now render inline only
   (`plt.show()`) and are **not** written to `figures/` — they were stacking
   up as orphaned files every time the model-naming scheme churned (see the
@@ -73,11 +99,13 @@ on-disk layout, and the float32 precision gotcha.
 - **The `ψ` naming collision** (WamOL's `ψ=(θ,φ)` — the whole trainable
   network-weight vector — vs. this project's `params["psi"]` — the six
   physical GS constants) is still unresolved in the notebook's comments.
-- **No single model has been chosen as "the" thesis result yet.**
-  `scripts/make_pinn_figures.py` (the finalized figure pipeline) currently
-  reads a checkpoint tagged `DCPINN`, but the notebook's live model-naming
-  has since moved on to `APPINN`/`APPINN_ARB` — the two are out of sync.
-  Re-run and re-point the script once a final model is picked.
+- **AP-PINN (loss-balanced, no arb) is the current "final" pick**, not yet
+  finalized against AP-PINN (ARB) — the no-arbitrage variant is very close in
+  recovery accuracy and may end up preferred for the economic-consistency
+  argument alone. `scripts/figures/make_pinn_figures.py` now reads the
+  `mc_simulated/checkpoints/APPINN` checkpoint (fixed 2026-07-28 — it
+  previously read a stale `DCPINN` checkpoint from before this session's
+  rename, resolved along with the naming below).
 
 ---
 
@@ -87,13 +115,13 @@ on-disk layout, and the float32 precision gotcha.
   paths, prices under ℚ with the closed form, adds observation noise, and
   saves `data/input/synthetic/mc_data.pkl` — the only place `δ_true` exists,
   and it's retained purely as an evaluation target (CLAUDE.md §1). Figures:
-  `scripts/make_mc_figures.py` → `figures/monte_carlo_sim/mc{1-4}_*`.
+  `scripts/figures/make_mc_figures.py` → `figures/monte_carlo_sim/mc{1-4}_*`.
 - **Real**: `data/input/real/wti_{daily_state,futures_panel,analysis_ready}.csv`
   — Bloomberg-sourced, not reproducible from code, tracked as-is. No ground
   truth `δ_t` exists for real data; that's the entire reason a PINN inversion
   and a Kalman filter baseline both need to be judged some other way (curve
   fit quality, parameter plausibility, cross-model agreement). Figures:
-  `scripts/make_real_data_figures.py` → `figures/raw_data/real_data_overview.*`.
+  `scripts/figures/make_real_data_figures.py` → `figures/raw_data/real_data_overview.*`.
 
 ## 2. Kalman filter baseline (this session)
 
@@ -114,8 +142,8 @@ Stochastic Convenience Yield Models for Crude Oil Using the Kalman Filter*
 - Result: `κ̂=0.43, σ̂₁=0.44, σ̂₂=0.17, ρ̂=0.89, α̂^ℚ=-0.077`; filtered `δ̂_t`
   stays in a plausible `[-0.29, 0.23]` range; futures-curve-only inferred
   spot tracks real WTI cash prices to ~6.9% RMSE as a sanity check.
-- Saves `data/output/results/results_kalman.pkl` for downstream comparison
-  against the PINN's own `δ̂_φ(t)`.
+- Saves `data/output/kalman/results/results_kalman.pkl` for downstream
+  comparison against the PINN's own `δ̂_φ(t)`.
 
 ## 3. PINN model development
 

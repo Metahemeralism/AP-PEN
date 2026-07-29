@@ -12,7 +12,7 @@ Gibson-Schwartz PINN inversion:
                              latent quantity this thesis inverts for, and
                              the naive baseline the PINN is judged against
 
-Run:  python scripts/make_real_data_figures.py
+Run:  python scripts/figures/make_real_data_figures.py
 Reads data/input/real/{wti_daily_state,wti_futures_panel}.csv, writes
 figures/raw_data/real_data_overview.{pdf,png}.
 
@@ -40,7 +40,7 @@ from gs_wamol.utils.thesis_style import (
     direct_label, figsize, panel_tag, save, use_thesis_style,
 )
 
-REPO = Path(__file__).resolve().parents[1]
+REPO = Path(__file__).resolve().parents[2]
 DATA = REPO / "data" / "input" / "real"
 FIGDIR = REPO / "figures" / "raw_data"
 
