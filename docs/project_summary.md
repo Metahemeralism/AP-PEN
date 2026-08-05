@@ -15,7 +15,7 @@ on-disk layout, and the float32 precision gotcha.
 
 ---
 
-## Where things stand today (2026-07-28)
+## Where things stand today (2026-08-01)
 
 - **Data.** Two sources feed the model, both behind a shared loader pattern:
   the synthetic Monte Carlo simulator (`data/input/synthetic/mc_data.pkl`,
@@ -29,7 +29,8 @@ on-disk layout, and the float32 precision gotcha.
   first flagged 2026-07-19): the KF now supplies a `ψ̂` and a `δ̂_t` path
   fit on real data, which is both a benchmark for the PINN's inversion and a
   literature-grounded initialization source. See §2.
-- **PINN.** `notebooks/PINN_implementation.ipynb` — drift net `Â_θ(τ)` +
+- **PINN.** `notebooks/archive/AP-PINN dual network.ipynb` (archived; renamed from
+  `PINN_implementation.ipynb` this session) — drift net `Â_θ(τ)` +
   analytic `B(τ;κ)` + path net `δ̂_φ(t)`, GS parameters `ψ` learnable, `e_sde`
   restricted to update `α^ℙ` only (the fix for the variance-collapse failure
   mode in §3.6). The model is now named **AP-PINN** (not DCPINN/AC-PINN —
@@ -77,35 +78,66 @@ on-disk layout, and the float32 precision gotcha.
   `dcpinn_vs_gs_pinn_comparison.md`, `pinn_rewrite_todo.md`,
   `pinn_session_findings_2026-07-19.md`, `pinn_session_findings_2026-07-22.md`)
   unchanged, for anyone who wants the detailed provenance behind §3.
+- **Single-network AP-PINN (new this session, `notebooks/AP-PINN single
+  network.ipynb` — since renamed to `notebooks/AP-PEN.ipynb`, see §4's
+  note)** — a second architecture: path net only, `A(τ)` and `B(τ)`
+  both analytic (no drift net, no `e_ode`). Fixing the market price of
+  convenience-yield risk `λ₂` and segregating `ψ` into Q/P optimizer groups
+  resolved an identifiability failure that persisted under every other
+  configuration tried, including this project's own dual-network model
+  (§3.7's `σ₁σ₂ρ` product problem) — `σ₁`/`σ₂`/`ρ` all move meaningfully
+  toward truth for the first time. The notebook now also runs end-to-end on
+  **real WTI data**, benchmarked against the Kalman filter baseline (§2)
+  instead of synthetic ground truth: `APPINN_ARB` reaches corr **+0.888** /
+  RMSE **0.051** against the KF's own `δ̂_t`, best of the three real-data
+  variants tried. A temporal holdout (train `<2024`, test `≥2024`) shows the
+  SDE-regularized variant generalizing almost perfectly out-of-sample (RMSE
+  ratio 1.01×) while the plain data-fit model degrades sharply (1.96×) and
+  visibly drifts once extrapolating past its trained time domain — direct
+  evidence for what the physics term buys, not just an in-sample fit
+  improvement. Full narrative in the new §4.
+- **`PINN_implementation.ipynb` no longer exists** — renamed to
+  `notebooks/AP-PINN dual network.ipynb` this session (the single-network
+  notebook above is its new sibling, not a replacement); that dual-network
+  notebook has since been archived to `notebooks/archive/AP-PINN dual
+  network.ipynb` (see §4's note). `CLAUDE.md`'s file map and cross-references
+  were updated accordingly; grep for the old name before trusting any other
+  doc that still has it.
 
 ### Open items (carried forward, still true as of today)
 
-- **`σ₁`/`ρ` are not separately identifiable** from futures term-structure
-  data in this model, at any epoch count — they enter the closed-form `A(τ)`
-  only as the product `σ₁σ₂ρ` (§3.7). Worth stating explicitly in the thesis
-  rather than looking like an unconverged run. Not yet fixed: pin one
-  externally, or reparameterise to learn the identified composite directly.
+- **`σ₁`/`ρ` are not separately identifiable in the dual-network model**
+  from futures term-structure data at any epoch count — they enter the
+  closed-form `A(τ)` only as the product `σ₁σ₂ρ` (§3.7). The single-network
+  model's fixed-`λ₂` fix (§4.2) resolves this in *that* architecture, but the
+  dual-network notebook itself is untouched — worth stating explicitly in the
+  thesis rather than looking like an unconverged run if that model is what
+  ships, or porting the same fix across if it isn't.
 - **Per-date `τ` is still a fixed mean-per-slot vector**, not the true
   per-date shrinking `τ` real dated contracts have (CLAUDE.md's "Maturity
   handling" extension point). This was already flagged as "on the critical
-  path" on 2026-07-19 and hasn't moved — both `PINN_implementation.ipynb`'s
-  `get_data_wti` and `kalman_filter.ipynb`'s `load_wti_panel` share the same
-  simplification, so the two baselines stay comparable, but neither reflects
+  path" on 2026-07-19 and hasn't moved — `get_data_wti` in *both* PINN
+  notebooks and `kalman_filter.ipynb`'s `load_wti_panel` share the same
+  simplification, so all three baselines stay comparable, but none reflects
   real dated-contract roll-down yet.
-- **`x64` is still off** in `PINN_implementation.ipynb` — per CLAUDE.md §5
-  this floors any PDE/ODE-residual reading at ~1e-5. (The Kalman filter
-  notebook does enable it.) Turn it on before reading absolute residual
-  levels as anything other than "at the float32 floor."
+- **`x64` is still off** in both PINN notebooks — per CLAUDE.md §5 this
+  floors any PDE/ODE-residual reading (dual notebook) or price/no-arb-hinge
+  reading (either notebook) at ~1e-5. (The Kalman filter notebook does enable
+  it.) Turn it on before reading absolute residual levels as anything other
+  than "at the float32 floor."
 - **The `ψ` naming collision** (WamOL's `ψ=(θ,φ)` — the whole trainable
   network-weight vector — vs. this project's `params["psi"]` — the six
-  physical GS constants) is still unresolved in the notebook's comments.
-- **AP-PINN (loss-balanced, no arb) is the current "final" pick**, not yet
-  finalized against AP-PINN (ARB) — the no-arbitrage variant is very close in
-  recovery accuracy and may end up preferred for the economic-consistency
-  argument alone. `scripts/figures/make_pinn_figures.py` now reads the
+  physical GS constants) is still unresolved in the notebooks' comments.
+- **AP-PINN (loss-balanced, no arb) is the current "final" pick for the
+  dual-network model**, not yet finalized against AP-PINN (ARB) — the
+  no-arbitrage variant is very close in recovery accuracy and may end up
+  preferred for the economic-consistency argument alone.
+  `scripts/figures/make_pinn_figures.py` now reads the
   `mc_simulated/checkpoints/APPINN` checkpoint (fixed 2026-07-28 — it
   previously read a stale `DCPINN` checkpoint from before this session's
-  rename, resolved along with the naming below).
+  rename, resolved along with the naming below). Separately, the two PINN
+  *architectures* (dual- vs single-network) aren't yet reconciled either —
+  see §4's open items.
 
 ---
 
@@ -374,6 +406,194 @@ composite quantity directly.
 
 ---
 
+## 4. Single-network AP-PINN — fixed risk premium, real no-arb bounds, first real-data result
+
+**Naming note (later session):** this notebook has since been renamed to
+`notebooks/AP-PEN.ipynb` ("AP-PEN" = Affine-Partitioned Physics-Embedded
+Network — the model's display name; internal config/variant tags like
+`APPINN`/`APPINN_ARB` and on-disk paths were left unchanged, see `CLAUDE.md`).
+Its dual-network sibling from §3 has been archived to `notebooks/archive/AP-PINN
+dual network.ipynb` and is no longer maintained. The narrative below describes
+the notebook as it was at the time of this session, under its original name.
+
+New notebook this session, `notebooks/AP-PINN single network.ipynb`, cloned
+from the dual-network notebook (§3) and renamed alongside it (`AP-PINN dual
+network.ipynb` ← `PINN_implementation.ipynb`). Original question: does the
+drift net `Â(τ)` buy anything over the exact closed form? Short answer: no —
+`A(τ)`/`B(τ)` can both be analytic, which also removes `e_ode` outright
+(`A_coeff` satisfies its own defining ODE identically for any `ψ`, so the
+residual is ~0 by construction, not by training) — but chasing that question
+led to fixing a real identifiability problem, a real numerical instability,
+and the project's first end-to-end real-data run.
+
+### 4.1 Fixed risk premium + parameter segregation — the identifiability fix
+
+`α^ℚ`/`α^ℙ` had always been learned as fully independent `ψ` leaves, even
+though the true model has only one free real-world/risk-neutral gap
+(`λ₂`, via `α^ℚ=α^ℙ-σ₂λ₂/κ`, CLAUDE.md §2). That redundant degree of freedom
+is what was keeping `σ₁`/`σ₂`/`ρ` pinned near their init values under *every*
+configuration tried, in both notebooks (§3.7's `σ₁σ₂ρ` finding is the same
+symptom). Fix: freeze `λ₂` at a "historical estimate" (`LAMBDA2_FIXED`, not
+learned) and derive `α^ℚ` from it each step, removing `α^ℚ` as an
+independent leaf entirely. Paired with **parameter segregation** — `ψ` split
+into a Q-group `{κ,σ₁,σ₂,ρ}` and a P-group `{α^ℙ}`, each with its own optax
+`TrainState` (plus the path net's own), three gradient steps per epoch
+instead of one joint step, so a "frozen" group gets literally zero update
+rather than fighting stale Adam momentum.
+
+Validated standalone before folding in, including a robustness sweep
+perturbing `λ₂` by ±30% off its true value (oracle case, then two
+misestimated cases) — the `σ₁`/`σ₂`/`ρ` recovery gain holds up under a
+realistic wrong `λ₂`, not just the oracle one:
+
+| `λ₂` setting | `ρ` (true 0.766) | `σ₂` (true 0.527) | `δ̂` MSE |
+|---|---|---|---|
+| oracle | 0.80–0.83 | 0.45–0.50 | 0.0042–0.0054 |
+| +30% error | 0.80–0.84 | 0.48–0.51 | 0.0052–0.0078 |
+| −30% error | 0.77–0.84 | 0.45–0.53 | 0.0047–0.0050 |
+
+vs. every free-`α^ℚ` configuration tried before this (joint or segregated),
+where `ρ` sat at 0.44–0.46 (near its perturbed init, true 0.766) regardless
+of epoch count.
+
+### 4.2 A collapse, deliberately not repeated: `e_sde` into the path net
+
+The architecture-diagram spec called for `e_sde`'s gradient to also train the
+path net directly (not just `α^ℙ`), routed via the alternating steps above.
+Tested exactly as specified: it collapses `κ→0` and flattens `δ̂_φ(t)` to the
+OU conditional mean — the identical failure mode as the dual-network model's
+`σ₂→0` variance collapse (§3.6), just reached by a different route (here `κ`
+is Q-owned so `σ₂` can't collapse, but the path itself still gets flattened
+and `B(τ,κ)≈-1/κ` blows up to compensate in the price fit). Reverted: `e_sde`
+stays stop-gradiented from the path net (as in the dual-network model),
+confirming this protection generalizes across both architectures rather than
+being specific to the dual-network's own derivation.
+
+### 4.3 Literature-grounded no-arbitrage bounds, and a new loss term
+
+The placeholder `STORAGE_COST_U=0.5` (50%/yr) was roughly 5× even the most
+generous literature estimate. Replaced with `u=0.10`/yr baseline (Stancu,
+Symeonidis, Wese Simen & Zhao 2022 report ~6%/yr average, ~9%/yr in
+contango — 0.10 sits safely above both as a ceiling that shouldn't spuriously
+bind). `DELTA_MAX=0.75` was already empirically reasonable but re-justified
+against Gibson & Schwartz (1990) Table VI's realized +65.5% instantaneous
+convenience yield and Figure 2's ~100% turmoil excursions, rather than
+resting on an ad hoc Monte Carlo percentile.
+
+Also implemented `e_delta_floor` (`mathematical_derivations-6.pdf` §7.3, eq.
+38 — previously listed as "not implemented"): a hinge directly on the latent
+path `δ̂_φ(t_i)` at observation times, `DELTA_MIN=-0.3`. Deliberately *not*
+the Liu & Tang (2010) no-arbitrage floor of exactly 0 — the derivation itself
+argues a hard structural floor there would fight the OU dynamics' Gaussian
+marginals and bias `δ̂` upward in exactly the deep-contango regime the model
+exists to capture (eq. 39's own reasoning, carried over unchanged).
+
+### 4.4 The no-arb ceiling needed to be time-varying, discovered empirically
+
+Checking the new `u=0.10` ceiling directly against real WTI data (model-free,
+no training required — both the cash-and-carry and reverse-cash-and-carry
+bounds reference only observed `(F,S,τ,r)`) found it violated on **63%/47%/
+21%** of 2015/2016/2020 rows respectively vs **0–2%** every other year
+2017–2026. Not spread evenly — a single constant is provably wrong for that
+window, not just imprecise. The two crisis clusters are the 2015–16
+shale-oversupply contango glut and April 2020 (the day after the negative-WTI
+print, where the front-month spot was a physically-distressed, non-
+representative price — storage capacity was exhausted that week, so the
+cash-and-carry mechanism was mechanically unavailable, not just expensive).
+
+Fix: `STORAGE_COST_U`/`DELTA_MAX` are now `(n,)` arrays via a regime step
+function (`is_crisis`, flagged for all of 2015–2016 and April 2020;
+`U_CRISIS=0.30`, `DELTA_MAX_CRISIS=1.0`), all-`False`/baseline-only for
+MC-simulated data. Cuts real-data violations from 11.93%→2.72%; the residual
+2.72% concentrates on the most extreme days inside the crisis window itself
+(April 20–21, 2020), which no finite `u` can rationalize for the reason
+above. **Caveat for the thesis**: the crisis events themselves are public,
+well-documented history (legitimate to use, like any econometric crisis
+dummy), but the exact window boundaries and magnitude were cross-checked
+against this same evaluation dataset — recommend also reporting the
+flat-`u` comparison as a robustness check, not just the regime-aware result.
+
+### 4.5 Real WTI data, benchmarked against the Kalman filter (§2)
+
+First end-to-end real-data run for either PINN notebook. No `δ_true`/`ψ_true`
+exists for real data, so the Kalman filter (§2) is the benchmark instead — an
+independent, non-PINN estimate from the same panel. Its own MLE-fitted `ψ̂`
+also replaces what had been a literature guess: `PSI_INIT` is now the KF's
+converged `κ,σ₁,σ₂,ρ,α^ℙ`, and `LAMBDA2_FIXED` is the KF's own fitted `λ≈0.44`
+— the actual "historical estimate" §4.1's design wanted, not a placeholder.
+
+First attempt at this diverged completely on `APPINN_ARB` (loss exploding,
+`κ` running to 25+, `ρ` pinned at the tanh boundary) — traced to a **missing
+WamOL balancer** in the standalone test script used to check it before
+folding into the notebook (dropped for speed). With `κ` starting low (0.43,
+from the KF fit), `B(τ)≈-1/κ≈-2.3` amplifies price-space gradients into the
+path net heavily; without the balancer equalizing channel gradient
+magnitudes, that snowballs into a runaway. The notebook's actual
+`calibration()` already had the balancer — folding in with the real
+production code (not the simplified test script) fixed it outright.
+
+Result — `δ̂_φ(t)` vs. the Kalman filter's own `δ̂_t`, common dates:
+
+| variant | corr vs. KF | RMSE vs. KF | `κ` (KF 0.43) | `ρ` (KF 0.89) |
+|---|---|---|---|---|
+| MLP | 0.881 | 0.098 | 1.08 | 0.97 |
+| APPINN | 0.875 | 0.091 | 1.00 | 0.96 |
+| **APPINN_ARB** | **0.888** | **0.051** | 0.54 | **0.90** |
+
+`APPINN_ARB`'s RMSE against the KF is roughly half the plain variants' —
+and it visibly avoids a real failure the other two don't: `MLP`/`APPINN`
+both hit an implausible **-129%/yr** minimum somewhere in the series (far
+beyond G&S's own most extreme documented value of -13.7%), which the plot
+shows landing exactly on the April 2020 crisis date. `e_delta_floor` (§4.3)
+correctly reins this in for `APPINN_ARB` (contained to -15%, `e_delta_floor`
+driven to exactly 0) — the constraint doing its intended job on real data,
+not just in the synthetic ablation it was designed against.
+
+### 4.6 Temporal holdout — what the SDE term actually buys
+
+Not a classical ML train/test split — there's no observable `δ_t` to hold
+out and score against. Instead: calibrate on dates before 2024-01-01, hold
+out 2024-01-01 onward (~19% of the panel), and check whether the fitted `ψ`
+and path net still price *observed futures* well on unseen later dates. This
+also directly measures a limitation the derivation names but doesn't
+quantify (`mathematical_derivations-6.pdf` §12.3): the path net is a plain
+function of `normalize_time(t)`, so any date past the trained cutoff is
+neural extrapolation.
+
+| variant | in-sample RMSE | out-of-sample RMSE | ratio |
+|---|---|---|---|
+| MLP | 0.031 | 0.061 | **1.96×** |
+| **APPINN** | 0.037 | 0.037 | **1.01×** |
+| APPINN_ARB | 0.172 | 0.060 | 0.35× |
+
+`APPINN` (the SDE-regularized variant, no hinge constraints) generalizes
+almost perfectly. The recovered-path plot shows why: extrapolating past the
+cutoff, `MLP` drifts steadily downward with nothing to anchor it, while
+`APPINN`/`APPINN_ARB` stay flat — the OU-consistency prior gives the path
+something to revert toward even outside its trained domain, which a plain
+price-fit objective has no mechanism for. `APPINN_ARB`'s much higher
+in-sample RMSE is the same fit-vs-constraint trade-off as §4.5; it doesn't
+drift like `MLP` either, since it still carries the same `e_sde` anchor.
+
+### Open items specific to this section
+
+- The two PINN architectures (dual-network §3, single-network above) are not
+  reconciled — different identifiability behavior (§4.1 fixes what §3.7
+  calls structural), different real-data results, no head-to-head run yet.
+- `R_FIXED=0.05` is still a constant in the single-network notebook even
+  though real `r` ranges 0–5.6% over 2015–2026 (unlike `u`/`δ_max`, this
+  wasn't made time-varying this session).
+- The crisis-regime lookahead caveat in §4.4 — recommend running the
+  flat-`u` comparison before treating the regime-aware real-data numbers in
+  §4.5 as final.
+- `DELTA_MIN=-0.3` is a single constant, not time-varying like `u`/`δ_max` —
+  no literature figure was found to anchor a crisis-regime value to it, but
+  April 2020's implied convenience yield is exactly the kind of episode a
+  fixed floor might not accommodate; worth checking whether it ever binds
+  before trusting it's inert the way `DELTA_MAX_BASELINE` turned out to be.
+
+---
+
 ## Where to look for detail
 
 - `docs/archive/pinn_master_history.md` — the original, unedited version of
@@ -390,3 +610,6 @@ composite quantity directly.
 - `docs/mathematical_derivations-6.pdf` — the derivation this architecture
   implements.
 - `CLAUDE.md` — durable repo conventions (read this first, always).
+- §4 (single-network AP-PINN) has no separate archive doc — it's a single
+  session's work, written directly into this summary at full detail; there's
+  no shorter "primary source" to point to underneath it.

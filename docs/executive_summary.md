@@ -3,7 +3,7 @@
 *One page, for anyone who wants the gist without the session logs. Detailed
 technical narrative lives in `docs/project_summary.md`; this file mirrors its
 "Where things stand" section but written for a non-specialist reader. Updated
-alongside it — last updated 2026-07-28.*
+alongside it — last updated 2026-08-01.*
 
 ## The problem, in one paragraph
 
@@ -51,20 +51,32 @@ pricing PDE and stochastic dynamics.
   *why* showed the constraint itself was economically wrong — real WTI
   market data was found to violate that exact constraint too, confirming it
   wasn't a quirk of the simulation.
-- **The Kalman filter baseline is now running on real market data**,
-  producing the first real-data parameter estimates this project has and a
-  benchmark convenience-yield path to compare the PINN's own output against.
-- **One genuine limit of the model itself, not the method:** two of the six
-  model parameters turn out to be mathematically inseparable from futures
-  prices alone — they only ever appear multiplied together, in the pricing
-  formula itself, regardless of what fits the data. Worth stating plainly in
-  the thesis rather than looking like an unconverged result.
+- **The Kalman filter baseline runs on real market data**, producing
+  real-data parameter estimates and a benchmark convenience-yield path.
+- **A simpler PINN variant (single network, no drift net) now also runs on
+  real WTI data — and beats the plainer versions of itself against that
+  Kalman benchmark.** Freezing one previously-free parameter (the market
+  price of convenience-yield risk) turned out to fix an identifiability
+  problem that had persisted throughout the project; the resulting model
+  tracks the Kalman filter's own estimate more closely (correlation 0.89)
+  than simpler versions of the same network, and a genuine out-of-sample test
+  (train on early years, check pricing accuracy on held-out later years)
+  shows the more physics-constrained version generalizing far better —
+  barely any accuracy loss out-of-sample, versus the plain data-fitting
+  version, which visibly drifts once asked to extrapolate.
+- **One genuine limit of the model itself, not the method:** some model
+  parameters turn out to be mathematically inseparable from futures prices
+  alone in certain configurations — they only ever appear multiplied
+  together in the pricing formula, regardless of what fits the data. Worth
+  stating plainly in the thesis rather than looking like an unconverged
+  result; the fix above resolves it in the newer model variant.
 
 ## What's left
 
-- Run the PINN itself on real WTI data (validated on synthetic so far).
+- Reconcile the two PINN variants (the original two-network design and the
+  newer single-network one) — no head-to-head comparison exists yet.
 - Handle real contracts' maturities shrinking day by day, rather than the
-  current fixed-maturity simplification (shared by both the PINN and the
-  Kalman baseline, so they stay comparable).
+  current fixed-maturity simplification (shared by both PINN variants and the
+  Kalman baseline, so all three stay comparable).
 - Settle on one final model variant and freeze the comparison figures for
   the thesis write-up.
