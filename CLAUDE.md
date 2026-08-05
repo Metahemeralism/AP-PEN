@@ -21,8 +21,8 @@ not an oversight.
 | Closed-form GS pricer (`GSParams`, `B_coeff`, `A_coeff`, `futures`, `term_structure`) | `src/gs_wamol/physics/gibson_schwartz.py` — the **only** module left in the package |
 | ℙ-path simulator (Euler–Maruyama) | Inline in `notebooks/monte_carlo_simulation.ipynb` (no longer a package module) |
 | PDE/pricer validation harness | **Gone.** `tests/test_synthetic_gs.py` was deleted along with the rest of `tests/` in the cleanup. There is currently **no automated check** that the closed-form coefficients are still correct — see §3 and §6. |
-| PINN networks/loss/training code | Inline in `notebooks/PINN_implementation.ipynb`. The notebook defines its own `Dense`/`MLP` rather than importing a package version (`src/gs_wamol/models/` no longer exists) — this matters because the notebook's networks have no output activation (`δ̂`/`Â` are signed), so a generic package MLP with a forced-positive output would silently be the wrong network. |
-| Kalman filter benchmark | `notebooks/kalman_filter.ipynb` — self-contained, inlines its own copy of `B_coeff`/`A_coeff` rather than importing the package, for the same "keep the training/estimation code differentiable and dependency-free" reason as the PINN notebook. |
+| PINN networks/loss/training code | `notebooks/AP-PEN.ipynb` (renamed from `AP-PINN single network.ipynb`; path net only, `A(τ)`/`B(τ)` both analytic — see `docs/project_summary.md` §4 for why and what it changes) is the active notebook. Its two-network predecessor, `AP-PINN dual network.ipynb` (drift net `Â(τ)` + analytic `B(τ)` + path net), is **archived** at `notebooks/archive/AP-PINN dual network.ipynb` — kept for reference, not maintained, and not updated for any convention changes made to `AP-PEN.ipynb` since the archive date. Both originally renamed from `PINN_implementation.ipynb`, which no longer exists. `AP-PEN.ipynb` defines its own `Dense`/`MLP` rather than importing a package version (`src/gs_wamol/models/` no longer exists) — this matters because the notebook's network has no output activation (`δ̂` is signed), so a generic package MLP with a forced-positive output would silently be the wrong network. Internally the notebook still uses the `APPINN`/`APPINN_ARB` identifiers for config/variant tags and file paths (config vars, `run_tag()` output, checkpoint/result filenames, `_MC_OUTPUT_DIR`) — only the model's display name changed to AP-PEN (title, prose, plot labels), matching the convention already used in `scripts/figures/make_pinn_figures.py`'s `DISPLAY_NAME` dict; the underlying tags were deliberately left alone since renaming them would also require renaming everything already on disk under `data/output/`. |
+| Kalman filter benchmark | `notebooks/kalman_filter.ipynb` — self-contained, inlines its own copy of `B_coeff`/`A_coeff` rather than importing the package, for the same "keep the training/estimation code differentiable and dependency-free" reason as the PINN notebooks. Now fit on real WTI data (`data/output/kalman/results/results_kalman.pkl`) and used as the real-data benchmark for both PINN notebooks. |
 | Thesis-ready figures | `scripts/figures/make_{mc,real_data,pinn}_figures.py` — see §4's on-disk layout. |
 
 All three figure scripts live together under `scripts/figures/` (not loose in
@@ -52,9 +52,12 @@ it does not track day-to-day progress.
 An MSc thesis applying a **Physics-Informed Neural Network (PINN)** to invert
 for the latent **convenience yield** $\delta_t$ from observed WTI crude oil
 futures term structures, under the **Gibson–Schwartz two-factor model**
-(Schwartz 1997, Model 2). The inversion (`notebooks/PINN_implementation.ipynb`)
-is benchmarked against a classical **Kalman filter** baseline
-(`notebooks/kalman_filter.ipynb`, based on Krul 2008), fit on real WTI data.
+(Schwartz 1997, Model 2). The inversion (`notebooks/AP-PEN.ipynb`, the active
+single-network architecture; its archived two-network predecessor is
+`notebooks/archive/AP-PINN dual network.ipynb` — see `docs/project_summary.md`
+§4) is benchmarked against a classical **Kalman
+filter** baseline (`notebooks/kalman_filter.ipynb`, based on Krul 2008), fit
+on real WTI data.
 
 The identified research gap: no published work uses a PINN to invert for latent
 convenience yield from market data.
@@ -217,8 +220,8 @@ figures/
   monte_carlo_sim/   written by scripts/figures/make_mc_figures.py
   raw_data/          written by scripts/figures/make_real_data_figures.py;
                       the old notebooks/data_exploration.ipynb this used to come from is deleted
-  pinn/              written by scripts/figures/make_pinn_figures.py — NOT by the notebook.
-                      PINN_implementation.ipynb's own model-comparison plots render inline
+  pinn/              written by scripts/figures/make_pinn_figures.py — NOT by the notebooks.
+                      Both PINN notebooks' own model-comparison plots render inline
                       only and are deliberately not saved here anymore (they were the source
                       of most of the churn in this directory's history — every rename of the
                       model variants left a new set of orphaned PNGs behind)
@@ -253,10 +256,13 @@ Real Bloomberg dated contracts (e.g. `CLZ5 Comdty`) have $\tau$ **shrinking
 toward delivery**: $\tau = (\text{delivery date} - \text{observation
 date})/365$. To support this, replace the fixed per-slot mean $\tau$ vector
 with a per-date $\tau$ matrix. The pricing layer already vmaps over $\tau$, so
-this is a localized change — but it now has to be made in **two places**
-that both currently share the same simplification and should stay in sync:
-`get_data_wti` in `notebooks/PINN_implementation.ipynb` and `load_wti_panel`
-in `notebooks/kalman_filter.ipynb`.
+this is a localized change — but it now has to be made in **two active
+places** that currently share the same simplification and should stay in
+sync: `get_data_wti` in `notebooks/AP-PEN.ipynb` and `load_wti_panel` in
+`notebooks/kalman_filter.ipynb`. (`get_data_wti` in the archived
+`notebooks/archive/AP-PINN dual network.ipynb` has the same simplification
+too, but that notebook isn't maintained — fix it there only if you have a
+specific reason to still run it.)
 
 ---
 
@@ -273,10 +279,11 @@ epsilon (~$10^{-14}$), confirming the analytic coefficients are exact.
 - Validation / verification code must enable x64, or the checks will appear to
   "fail" when the maths is actually correct. `notebooks/kalman_filter.ipynb`
   enables it globally for exactly this reason (its MLE recursion compounds
-  float32 error over ~2700 sequential steps). `PINN_implementation.ipynb`
-  currently does **not** enable it — keep that in mind before reading any
-  absolute `e_ode`/PDE-residual level out of that notebook as more than "at
-  the float32 floor."
+  float32 error over ~2700 sequential steps). Neither `AP-PEN.ipynb` nor its
+  archived predecessor `notebooks/archive/AP-PINN dual network.ipynb` enables
+  it — keep that in mind before reading any absolute `e_ode`/PDE-residual
+  level (archived dual notebook only) or `e_data`/no-arb hinge level (either
+  notebook) as more than "at the float32 floor."
 - A **float32 PINN cannot drive its PDE-residual loss below ~$10^{-5}$**. This is
   a precision floor, not a training failure. Set convergence tolerances
   accordingly, and consider float64 for residual-sensitive experiments.
