@@ -149,7 +149,7 @@ on-disk layout, and the float32 precision gotcha.
   and it's retained purely as an evaluation target (CLAUDE.md §1). Figures:
   `scripts/figures/make_mc_figures.py` → `figures/monte_carlo_sim/mc{1-4}_*`.
 - **Real**: `data/input/real/wti_{daily_state,futures_panel,analysis_ready}.csv`
-  — Bloomberg-sourced, not reproducible from code, tracked as-is. No ground
+  — Refinitiv-sourced, not reproducible from code, tracked as-is. No ground
   truth `δ_t` exists for real data; that's the entire reason a PINN inversion
   and a Kalman filter baseline both need to be judged some other way (curve
   fit quality, parameter plausibility, cross-model agreement). Figures:
@@ -456,6 +456,28 @@ vs. every free-`α^ℚ` configuration tried before this (joint or segregated),
 where `ρ` sat at 0.44–0.46 (near its perturbed init, true 0.766) regardless
 of epoch count.
 
+> **⚠️ CORRECTED 2026-08-07 — this did not resolve the identifiability
+> failure; it converted bias into variance.**
+>
+> The futures term structure identifies only **three** combinations of the
+> five ℚ-parameters: `(kappa, sigma2, m)` with
+> **`m = alpha_Q + sigma1*sigma2*rho/kappa`**. Substituting `m` into the
+> closed form collapses all three `A(tau)` basis coefficients onto those
+> three quantities, so `sigma1`, `rho` and `alpha_Q` are *individually*
+> non-identifiable from futures prices — exactly, at any number of
+> maturities, at zero noise. Confirmed by SVD (two singular values at ~1e-17,
+> rank 3 / nullity 2) and by direct invariance test (moving `sigma1` over
+> [0.16, 1.24] and `rho` over [−0.94, +0.83] at fixed `m` changes `A(tau)` by
+> ≤5.6e-17).
+>
+> The 20-path repeats show what the fix actually did to `P = sigma1*sigma2*rho`
+> (true 0.1586): dual-network **0.0648 ± 0.0092** (stuck at init — large bias,
+> tiny variance) → single-network **0.2424 ± 0.1712** (CV **71%** — small bias,
+> huge variance). `m` is recovered at CV **3.8%** in *both*. The ρ≈0.80 figure
+> in the table above is one draw from a distribution with std 0.36; a ±1σ
+> interval for ρ is [0.34, 1.06], wider than ρ's own admissible range.
+> See `docs/results_and_discussion.md` §0 and §1.4.
+
 ### 4.2 A collapse, deliberately not repeated: `e_sde` into the path net
 
 The architecture-diagram spec called for `e_sde`'s gradient to also train the
@@ -540,6 +562,25 @@ Result — `δ̂_φ(t)` vs. the Kalman filter's own `δ̂_t`, common dates:
 | APPINN | 0.875 | 0.091 | 1.00 | 0.96 |
 | **APPINN_ARB** | **0.888** | **0.051** | 0.54 | **0.90** |
 
+> **⚠️ CORRECTED 2026-08-07 — this table describes a run that no longer
+> exists on disk.** `data/output/real_data/results/results_APPINN_ARB.pkl`
+> (and the notebook's own cell-41 output) show `APPINN_ARB` **collapsed**:
+> `kappa=0.0028`, `sigma1=0.0051`, `sigma2=0.0557`, `rho=-0.820`,
+> `alpha_Q=-4.460`, `alpha_P=+4.374`. Current vs-KF figures are MLP corr
+> +0.9180 / RMSE 0.1087, APPINN +0.9163 / 0.1094, APPINN_ARB +0.9399 /
+> 0.0395.
+>
+> Two things this section got wrong beyond the numbers:
+> 1. **A constant at the KF's own mean scores RMSE 0.1078** — so MLP and
+>    APPINN both have *negative skill* on this metric. The high correlations
+>    (+0.92) are scale-free and hide the −128%/yr excursion.
+> 2. `APPINN_ARB` "winning" is an artefact: the hinges squash its path into
+>    the same narrow band the KF occupies while its parameters run to a
+>    degenerate corner. The mechanism is a **1/kappa pole** in
+>    `alpha_Q = alpha_P - sigma2*lambda2/kappa` — the §4.1 fix and this
+>    failure are the same line of code. See `docs/results_and_discussion.md`
+>    §2.4–2.5.
+
 `APPINN_ARB`'s RMSE against the KF is roughly half the plain variants' —
 and it visibly avoids a real failure the other two don't: `MLP`/`APPINN`
 both hit an implausible **-129%/yr** minimum somewhere in the series (far
@@ -574,6 +615,23 @@ something to revert toward even outside its trained domain, which a plain
 price-fit objective has no mechanism for. `APPINN_ARB`'s much higher
 in-sample RMSE is the same fit-vs-constraint trade-off as §4.5; it doesn't
 drift like `MLP` either, since it still carries the same `e_sde` anchor.
+
+> **⚠️ CORRECTED 2026-08-07 — both the numbers and the mechanism above are wrong.**
+>
+> **Numbers.** A fresh run of the same cells gives MLP 0.02619→0.23201
+> (**8.86×**), APPINN 0.02298→0.03875 (**1.69×**), APPINN_ARB
+> 0.04243→0.04634 (**1.09×**). The qualitative ordering survives; the
+> magnitudes do not.
+>
+> **Mechanism.** `e_sde` cannot "anchor" the path: `error()` applies
+> `lax.stop_gradient(delta_hat)` before computing it, so its gradient into
+> the path net is *identically zero*, in-domain and out. `step2b` optimises
+> it w.r.t. `alpha_P` only. MLP and APPINN therefore differ by exactly one
+> scalar — whether `alpha_P` (hence `alpha_Q = alpha_P - sigma2*lambda2/kappa`,
+> hence the level of `A(tau)`) is frozen at init or fitted by OU-MLE. The
+> generalisation gap operates through the risk-neutral *level*, not through
+> any regularisation of the latent path. See
+> `docs/results_and_discussion.md` §4.4.
 
 ### Open items specific to this section
 

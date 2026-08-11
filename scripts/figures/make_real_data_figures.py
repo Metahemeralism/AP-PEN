@@ -7,7 +7,10 @@ composites -- see the sizing note in make_kalman_figures.py):
 
   real_data_market_state      -- S_t and r_t, the two exogenous pricing
                                  inputs, on a shared time axis (one plot, twin
-                                 y-axes -- not a panel pair, see NOTE below)
+                                 y-axes -- not a panel pair, see NOTE below),
+                                 with five major oil-market events (public
+                                 dates, see MARKET_EVENTS) marked as reference
+                                 lines for context
   real_data_basis_surface     -- what the PINN actually observes: the futures
                                  term structure through time, contango vs
                                  backwardation, as a 2D heatmap
@@ -21,7 +24,15 @@ composites -- see the sizing note in make_kalman_figures.py):
                                  backwardation shape, and how sharply it can
                                  invert within a single episode (e.g. the
                                  April 2020 collapse), directly visible as
-                                 topography rather than colour alone
+                                 topography rather than colour alone.
+                                 (A raw ln F(t,tau) version was tried instead
+                                 of basis -- reverted: WTI's multi-year price
+                                 level swings ($25->$120 across the sample)
+                                 dominate the z-range and bury the maturity-
+                                 axis curve shape, confirmed not a rendering
+                                 artifact by resampling far sparser and seeing
+                                 the same corrugation. Basis detrends that out
+                                 by construction.)
 
 NOTE: real_data_market_state plots two series (spot, rate) on one Axes with
 a twin y-axis, not two Axes tiled in a grid -- that is one plot with two
@@ -36,7 +47,7 @@ real_data_delta_proxy,real_data_term_structure_3d}.{pdf,png}.
 
 PROVENANCE RULE
 ---------------
-data/input/real/ is NOT reproducible from code (Bloomberg source, see
+data/input/real/ is NOT reproducible from code (Refinitiv source, see
 CLAUDE.md) -- it is tracked as-is. Every mark in both figures is either a raw
 column from those CSVs or a plain aggregation of them (per-date OLS slope,
 linear interpolation onto a common tau grid, rolling mean, date subsampling).
@@ -49,6 +60,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import matplotlib.dates as mdates
+import matplotlib.patheffects as pe
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -119,9 +131,43 @@ def build_basis_surface(state: pd.DataFrame, panel: pd.DataFrame):
     return tau_grid, pd.to_datetime(row_dates), basis
 
 
+# Major oil-market events inside the sample window (2015-01-02 to
+# 2026-06-30). Public dates only, not derived from the data -- annotation,
+# not a claim about what moved S_t or r_t on any given day. Kept to five,
+# spaced across the full sample: dense event calendars (OPEC meets ~6x/year)
+# would clutter a single compact time axis; these are the ones a reader
+# already has context for, which is the point of marking them at all.
+MARKET_EVENTS = [
+    ("2016-01-20", "2014-16 glut low"),
+    ("2016-11-30", "OPEC cut deal"),
+    ("2020-04-20", "WTI settles negative"),
+    ("2022-02-24", "Russia invades Ukraine"),
+    ("2023-10-07", "Israel-Gaza war begins"),
+]
+
+
+def _mark_events(ax):
+    """Thin dotted reference lines + rotated labels pinned to the axes top.
+
+    The line itself can be muted ink (a continuous stroke the eye tracks
+    fine at low contrast, same reasoning as thesis_style's crisis shading),
+    but the label naming it cannot -- 6.5pt text needs secondary ink and a
+    white halo to survive a curve passing directly behind it (e.g. the
+    Ukraine invasion label sits right where the 2022 spike peaks).
+    """
+    for date_str, label in MARKET_EVENTS:
+        d = pd.Timestamp(date_str)
+        ax.axvline(d, color=INK["muted"], lw=0.7, ls=":", zorder=0)
+        ax.text(d, 0.97, label, transform=ax.get_xaxis_transform(),
+                 rotation=90, ha="right", va="top", fontsize=6.5,
+                 color=INK["secondary"],
+                 path_effects=[pe.withStroke(linewidth=2, foreground="white")])
+
+
 def fig_market_state(state):
     """Spot (left axis) + rate (right axis, twin) -- one plot, two scales."""
     fig, ax = plt.subplots(1, 1, figsize=figsize("full", ratio=0.42))
+    _mark_events(ax)
 
     # Colour is carried by the axis LABEL rather than an in-plot direct label:
     # both series end at the same right-hand edge of the shared x-axis, so any
@@ -137,6 +183,15 @@ def fig_market_state(state):
     ax2.set_ylabel("rate  $r_t$  (%)", color=INK["secondary"])
     ax2.tick_params(axis="y", colors=INK["secondary"])
     ax2.grid(False)
+
+    # twinx() axes draw ABOVE the original regardless of any artist's own
+    # zorder -- it's a separate Axes added later, so ax2's rate curve was
+    # rendering over the event lines/labels on ax wherever the two happened
+    # to cross (e.g. the Oct-2023 rate plateau sits right at the Israel-Gaza
+    # War marker, punching through the label). This reasserts ax on top;
+    # ax.patch must go invisible or it would then occlude ax2 in turn.
+    ax.set_zorder(ax2.get_zorder() + 1)
+    ax.patch.set_visible(False)
 
     ax.xaxis.set_major_locator(mdates.YearLocator(2))
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
@@ -231,7 +286,12 @@ def fig_term_structure_3d(state, panel, stride: int = 4):
     ax.set_ylabel(r"maturity $\tau$ (yrs)", fontsize=9, labelpad=8)
     ax.set_zticklabels([])  # height and colour both encode the basis; see kalman2's
     ax.tick_params(labelsize=8, pad=2)                      # note on this same choice
-    ax.view_init(elev=24, azim=-55)
+    # Steeper elevation + rotated azimuth than the original cut: pulls the
+    # camera up and further round, so the torn near-tau edge (contract-roll
+    # gaps in the observed span, see build_basis_surface) reads as a fold at
+    # the front of the surface rather than a wall blocking the far-maturity
+    # shape behind it.
+    ax.view_init(elev=30, azim=-60)
     ax.set_box_aspect((2.6, 1, 0.9))
 
     mappable = plt.cm.ScalarMappable(norm=norm, cmap=DIV_BLUE_RED)

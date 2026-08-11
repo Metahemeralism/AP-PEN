@@ -20,15 +20,29 @@ for:
   pinn2a/b    delta recovery         -- true delta_t and AP-PEN's delta_hat(t)
                                        overlaid (pinn2a), and the signed error
                                        between them (pinn2b), for a single path
-  pinn3a/b    path-repeat validation -- 20 independent Monte Carlo noise
+  pinn2c      delta recovery, all    -- the ablation companion to pinn2a: true
+              variants                 delta_t vs delta_hat for MLP/APPINN/
+                                       APPINN_ARB together on the same single
+                                       path (full domain, no holdout).
+                                       APPINN_nobal excluded -- PROVABLY
+                                       identical to APPINN under this
+                                       architecture, not just empirically
+                                       close (see DELTA_RECOVERY_TAGS)
+  pinn3a-c    path-repeat validation -- 20 independent Monte Carlo noise
                                        draws, each refit from scratch:
                                        signed-error traces overlaid (all 20,
-                                       faint, + mean, pinn3a) and the per-path
-                                       RMSE spread (pinn3b). Answers "is
-                                       recovery consistent across draws,"
-                                       which a 20-panel small-multiples grid
-                                       (one subplot per path) leaves the
-                                       reader to eyeball and aggregate by hand.
+                                       faint, + mean, pinn3a), the per-path
+                                       RMSE spread (pinn3b), and true-vs-
+                                       recovered delta pooled across all 20
+                                       paths as a hexbin density scatter
+                                       against the y=x line (pinn3c, with
+                                       path 0 -- pinn2a/b's single-path
+                                       illustration -- traced through it).
+                                       Answers "is recovery consistent
+                                       across draws," which a 20-panel
+                                       small-multiples grid (one subplot per
+                                       path) leaves the reader to eyeball and
+                                       aggregate by hand.
 
 (pinn2b as a 3D ribbon variant of pinn2a, and an earlier pinn3, a collocation-
 vs-data-coverage scatter, were dropped -- kept as an idea in git history if
@@ -37,10 +51,11 @@ reused for the delta-recovery error figure once the ribbon idea was dropped.)
 
 Run:  python scripts/figures/make_pinn_figures.py
 Reads data/input/synthetic/mc_data.pkl, data/output/mc_simulated_single_net/
-results/results_{MLP,APPINN_nobal,APPINN,APPINN_ARB}.pkl, and
+results/results_{MLP,APPINN_nobal,APPINN,APPINN_ARB}.pkl,
 data/output/mc_simulated_single_net/results/path_repeat.pkl (for pinn2a/b and
-pinn3a/b -- all four come from that file now, see PROVENANCE). Writes
-figures/pinn/{pdf,png}.
+pinn3a-c -- all come from that file, see PROVENANCE), and
+data/output/mc_simulated_single_net/results/delta_recovery_all_variants.pkl
+(for pinn2c). Writes figures/pinn/{pdf,png}.
 
 ARCHITECTURE (single-network AP-PEN, not the two-network predecessor)
 -----------------------------------------------------------------------
@@ -79,10 +94,11 @@ from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
+from matplotlib.ticker import MultipleLocator
 
 from gs_wamol.physics.gibson_schwartz import GSParams
 from gs_wamol.utils.thesis_style import (
-    C_MODEL, INK, PALETTE,
+    C_MODEL, INK, PALETTE, SEQ_BLUE,
     direct_label, figsize, save, use_thesis_style,
 )
 
@@ -90,6 +106,7 @@ REPO = Path(__file__).resolve().parents[2]
 MC_DATA = REPO / "data" / "input" / "synthetic" / "mc_data.pkl"
 RESULTS_DIR = REPO / "data" / "output" / "mc_simulated_single_net" / "results"
 PATH_REPEAT = REPO / "data" / "output" / "mc_simulated_single_net" / "results" / "path_repeat.pkl"
+DELTA_RECOVERY_ALL = REPO / "data" / "output" / "mc_simulated_single_net" / "results" / "delta_recovery_all_variants.pkl"
 FIGDIR = REPO / "figures" / "pinn"
 
 ORDER = ["kappa", "sigma1", "sigma2", "rho", "alpha_Q", "alpha_P"]
@@ -350,11 +367,21 @@ def _path0(pr):
 
 
 def fig_delta_recovery(pr):
-    """True vs. delta_hat overlay for a single path. Companion to
-    fig_delta_recovery_error, which plots the signed error between them."""
+    """True vs. delta_hat overlay for a single path (path 0 of the 20-path
+    repeat-validation set, see PROVENANCE).
+
+    Sized for a half-width pairing with fig_path_repeat_recovery (pinn3c),
+    which generalises this single-path story to all 20 draws -- NOT drawn at
+    "full" width and shrunk by LaTeX's \\includegraphics, which is exactly
+    the font-scaling mistake thesis_style.py's own docstring warns about
+    (a figure sized for 6.3in and displayed at half that width takes its 9pt
+    labels down to an unreadable ~4.5pt on the page). fig_delta_recovery_error
+    (pinn2b) still reads the same path 0 data even though it no longer sits
+    next to this figure in the thesis.
+    """
     t, delta_true, delta_hat, _ = _path0(pr)
 
-    fig, ax = plt.subplots(1, 1, figsize=figsize("full", ratio=0.40))
+    fig, ax = plt.subplots(1, 1, figsize=figsize("half"))
     ax.plot(t, delta_true, color=INK["primary"], lw=1.4, zorder=3, label="true")
     ax.plot(t, delta_hat, color=C_MODEL, lw=1.2, ls="--", zorder=4, label=DISPLAY_NAME["APPINN"])
     ax.set_ylabel(r"$\delta_t$")
@@ -379,6 +406,69 @@ def fig_delta_recovery_error(pr):
     ax.axhline(-rmse, color=INK["secondary"], lw=0.6, ls="--", zorder=1)
     ax.set_ylabel(r"$\hat\delta-\delta$")
     ax.set_xlabel("$t$ (yrs)")
+
+    fig.tight_layout()
+    return fig
+
+
+def load_delta_recovery_all():
+    with open(DELTA_RECOVERY_ALL, "rb") as f:
+        return pickle.load(f)
+
+
+# APPINN_nobal excluded, not just left out of the plot call: e_sde is stop-
+# gradiented from the path net (error(), AP-PEN.ipynb), so for APPINN
+# specifically, Step 1 (the only step WamOL balances) has exactly one
+# component with a nonzero path-net gradient -- e_data; e_sde's is always 0.
+# The balancer's own zero-handling (jnp.where(x==0, 1., sum/x)) then forces
+# both weights to exactly 1.0 regardless of balancing on/off. Confirmed
+# directly (grad_norm_dict = {'e_data': 6.3e-4, 'e_sde': 0.0}) and against
+# results_APPINN_nobal.pkl/results_APPINN.pkl on disk, which are bit-
+# identical at epoch 0, 100, and 40000 -- APPINN_nobal is PROVABLY identical
+# to APPINN under this architecture, not just empirically close, so it was
+# never trained into delta_recovery_all_variants.pkl in the first place
+# (notebook cell between "Model Evals" and "Run"). APPINN_ARB is unaffected:
+# its Step 1 has e_cac/e_rcac/e_delta_floor too, which DO have live path-net
+# gradients, so its balancer does real work.
+DELTA_RECOVERY_TAGS = ["MLP", "APPINN", "APPINN_ARB"]
+
+
+def fig_delta_recovery_all_variants(dr):
+    """True vs. delta_hat overlay for all three distinguishable variants
+    (see DELTA_RECOVERY_TAGS), single path (path_id=0, full domain, no
+    holdout) -- the ablation companion to fig_delta_recovery (pinn2a), which
+    only shows AP-PEN alone. Answers "does e_sde / do the no-arb hinges
+    actually help delta-recovery over plain data-misfit," which pinn2a
+    structurally can't on its own.
+    """
+    t = dr["t_train"]
+    delta_true = dr["delta_true"]
+
+    fig, ax = plt.subplots(1, 1, figsize=figsize("full", ratio=0.46))
+    # true UNDERNEATH (lowest zorder), variants layered on top -- same
+    # convention as pinn2a (true zorder=3 < model zorder=4 there). Recovery
+    # is tight enough (RMSE ~0.05-0.07) that the two nearly coincide almost
+    # everywhere; with true drawn last it would sit on top and visually
+    # swallow the thinner dashed variant lines across most of the domain,
+    # leaving only "true" visible. Drawing true first, thicker and solid,
+    # lets it peek through the dash gaps of the variant lines on top of it
+    # instead of the other way around.
+    ax.plot(t, delta_true, color=INK["primary"], lw=1.6, zorder=3, label="true")
+    for tag in DELTA_RECOVERY_TAGS:
+        v = dr["variants"][tag]
+        ax.plot(t, v["delta_hat"], color=MODEL_COLOUR[tag], ls=LINESTYLE[tag], lw=1.3, zorder=4,
+                label=f"{DISPLAY_NAME[tag]} (RMSE {v['rmse']:.3f})")
+    ax.set_ylabel(r"$\delta_t$")
+    ax.set_xlabel("$t$ (yrs)")
+    # In-axes legend collides with delta_true's own peaks/troughs -- the true
+    # path swings across nearly its full range at multiple points along t, so
+    # no in-plot corner is actually clear (unlike pinn2a's 2-entry legend,
+    # this one has 4 entries and needs the room). Placed below the axes
+    # instead, one row, same convention as _training_legend elsewhere in this
+    # module for multi-variant comparisons.
+    handles, labels = ax.get_legend_handles_labels()
+    fig.legend(handles, labels, loc="lower center", ncol=4,
+               bbox_to_anchor=(0.5, -0.06), frameon=False, fontsize=8)
 
     fig.tight_layout()
     return fig
@@ -445,6 +535,68 @@ def fig_path_repeat_rmse(pr):
     return fig
 
 
+def fig_path_repeat_recovery(pr):
+    """True vs. recovered delta, pooled across all 20 path-repeat draws, as
+    a density scatter against the y=x perfect-recovery line.
+
+    WHY THIS INSTEAD OF 20 fig_delta_recovery-STYLE OVERLAYS: each of the 20
+    draws is its OWN simulated path with its own delta_true (see PROVENANCE
+    -- these are 20 independent paths, not 20 noise redraws of one path), so
+    the 20 true/hat time series don't share a common phase or scale to
+    overlay meaningfully -- 40 lines would just be spaghetti, and a 20-panel
+    small-multiples grid is exactly the "make the reader eyeball 20 near-
+    identical mini plots" failure mode fig_path_repeat_errors already avoids
+    (see its own docstring). Pooling every (true, hat) pair from every path
+    into one true-vs-hat scatter sidesteps both: recovery quality across the
+    full ensemble reads directly off how tightly the cloud hugs the diagonal,
+    with hexbin density standing in for the 20,020 individual points.
+
+    An earlier version also traced path 0 (pinn2a/b's single-path
+    illustration) through the cloud as a connected line -- dropped, since a
+    time-ordered path threading through a density plot reads as a scribble
+    with no clear direction, adding clutter without adding to the one thing
+    this figure is for: showing how tightly the ensemble hugs the diagonal.
+    """
+    results = pr["results"]
+    true_all = np.concatenate([np.asarray(r["delta_true"]) for r in results])
+    hat_all = np.concatenate([np.asarray(r["delta_hat"]) for r in results])
+
+    lo = min(true_all.min(), hat_all.min())
+    hi = max(true_all.max(), hat_all.max())
+    pad = 0.05 * (hi - lo)
+    lim = (lo - pad, hi + pad)
+
+    fig, ax = plt.subplots(1, 1, figsize=figsize("half", ratio=1.0))
+    hb = ax.hexbin(true_all, hat_all, gridsize=45, cmap=SEQ_BLUE, mincnt=1,
+                    linewidths=0.1, extent=(*lim, *lim), zorder=1)
+    ax.plot(lim, lim, color=INK["muted"], lw=0.9, ls=":", zorder=2)
+
+    corr = np.corrcoef(true_all, hat_all)[0, 1]
+    ax.annotate(f"$r = {corr:.3f}$", xy=(0.05, 0.93), xycoords="axes fraction",
+                color=INK["primary"], ha="left", va="top", fontsize=9)
+
+    ax.set_xlabel(r"$\delta_t$ (true)")
+    ax.set_ylabel(r"$\hat\delta_t$ (recovered)")
+    ax.set_xlim(lim)
+    ax.set_ylim(lim)
+    ax.set_aspect("equal")
+    # set_aspect("equal") + the colorbar eating into the axes' pixel width
+    # (added after aspect is set) leave x and y with different effective
+    # pixel spans, so matplotlib's default per-axis locator picks a coarser
+    # tick set for x than y (0, 1 vs 0.0, 0.5, 1.0) despite identical data
+    # ranges -- force both to the same step so the shared scale reads as
+    # shared.
+    ax.xaxis.set_major_locator(MultipleLocator(0.5))
+    ax.yaxis.set_major_locator(MultipleLocator(0.5))
+
+    cbar = fig.colorbar(hb, ax=ax, shrink=0.8, pad=0.03, aspect=22)
+    cbar.set_label("point density", fontsize=8)
+    cbar.ax.tick_params(labelsize=7)
+
+    fig.tight_layout()
+    return fig
+
+
 def main():
     use_thesis_style()
     d = load_mc()
@@ -480,6 +632,7 @@ def main():
             ("pinn2b_delta_recovery_error", fig_delta_recovery_error),
             ("pinn3a_path_repeat_errors", fig_path_repeat_errors),
             ("pinn3b_path_repeat_rmse", fig_path_repeat_rmse),
+            ("pinn3c_path_repeat_recovery", fig_path_repeat_recovery),
         ):
             fig = builder(pr)
             path = save(fig, name, directory=FIGDIR)
@@ -488,6 +641,15 @@ def main():
     else:
         print(f"skipped pinn2a/b and pinn3a/b -- "
               f"{PATH_REPEAT.relative_to(REPO)} not found yet")
+
+    if DELTA_RECOVERY_ALL.exists():
+        dr = load_delta_recovery_all()
+        fig = fig_delta_recovery_all_variants(dr)
+        path = save(fig, "pinn2c_delta_recovery_all_variants", directory=FIGDIR)
+        plt.close(fig)
+        print(f"wrote {path.relative_to(REPO)}")
+    else:
+        print(f"skipped pinn2c -- {DELTA_RECOVERY_ALL.relative_to(REPO)} not found yet")
 
 
 if __name__ == "__main__":
