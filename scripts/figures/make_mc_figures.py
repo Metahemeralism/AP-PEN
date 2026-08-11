@@ -525,8 +525,8 @@ def fig_term_structure_3d(d, stride: int = 4):
 
     fig = plt.figure(figsize=figsize("full", ratio=0.72))
     ax = fig.add_subplot(111, projection="3d")
-    ax.plot_surface(T, K, Z, cmap=SEQ_BLUE, rstride=1, cstride=1,
-                     linewidth=0.1, edgecolor=(1, 1, 1, 0.25), antialiased=True)
+    surf = ax.plot_surface(T, K, Z, cmap=SEQ_BLUE, rstride=1, cstride=1,
+                            linewidth=0.1, edgecolor=(1, 1, 1, 0.25), antialiased=True)
 
     ax.set_xlabel("Time $t$ (years)", fontsize=8, labelpad=10)
     # No y-axis label TEXT, same reasoning as the dropped z-label: at this
@@ -535,16 +535,24 @@ def fig_term_structure_3d(d, stride: int = 4):
     # or shortening the string. The y-tick numbers (0.2-1.0) are kept and are
     # unambiguous read alongside the x-axis's "Time t (years)"; the axis is
     # named in the caption instead (maturity tau, years).
-    # No z-axis label TEXT: mplot3d cannot predict its own label extent before
-    # draw time, and a z-label here reliably clipped at the figure edge
-    # regardless of margin -- same failure mode as kalman2 and
-    # real_data_term_structure_3d, fixed there the same way. The z-tick
-    # NUMBERS are kept (they weren't the problem); the axis is named in the
-    # caption instead ($\log \hat F(\tau)$).
+    # No z-axis label OR tick numbers: height and colour both encode log F,
+    # same redundant-channel call as kalman2 and real_data_term_structure_3d
+    # -- and the colorbar below now carries the axis name and the exact
+    # values, which also sidesteps mplot3d's z-label clipping bug entirely
+    # (a colorbar lives in its own 2D axes, never subject to the 3D axes'
+    # extent-estimate-before-draw problem that broke a bare z-label here).
+    # This used to push the axis name into the external LaTeX caption
+    # instead; the colorbar is strictly better since the figure now reads
+    # standalone, without depending on caption text to interpret it.
+    ax.set_zticklabels([])
     ax.tick_params(labelsize=7, pad=2)
     ax.view_init(elev=24, azim=-55)
     ax.set_box_aspect((2.2, 1, 0.9))
     fig.subplots_adjust(left=0.02, right=0.80, top=0.95, bottom=0.05)
+
+    cbar = fig.colorbar(surf, ax=ax, shrink=0.55, pad=0.1, aspect=18)
+    cbar.set_label(r"$\log \hat F(\tau)$", fontsize=9)
+    cbar.ax.tick_params(labelsize=8)
     return fig
 
 

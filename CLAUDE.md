@@ -205,7 +205,7 @@ top level.
 ```
 data/
   input/
-    real/        WTI CSVs from Bloomberg. NOT reproducible from code — always tracked.
+    real/        WTI CSVs from Refinitiv Workspace (+ FRED DGS3MO rates). NOT reproducible from code — always tracked.
     synthetic/   mc_data.pkl, written by notebooks/monte_carlo_simulation.ipynb.
   output/        Model artefacts. GITIGNORED — regenerate by re-running the notebook.
     mc_simulated/
@@ -252,7 +252,7 @@ Rules:
 ### Maturity handling — open extension point
 Currently each contract's $\tau$ is held **fixed across dates** — each real
 contract's $\tau$ is averaged down to one static value per maturity "slot."
-Real Bloomberg dated contracts (e.g. `CLZ5 Comdty`) have $\tau$ **shrinking
+Real Refinitiv dated contracts (e.g. `CLZ25^2`) have $\tau$ **shrinking
 toward delivery**: $\tau = (\text{delivery date} - \text{observation
 date})/365$. To support this, replace the fixed per-slot mean $\tau$ vector
 with a per-date $\tau$ matrix. The pricing layer already vmaps over $\tau$, so
