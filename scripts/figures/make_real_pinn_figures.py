@@ -109,7 +109,7 @@ def fig_pinn_real_data():
     dates = pd.DatetimeIndex(results["MLP"]["dates"])
     crisis = _is_crisis(results["MLP"]["dates"])
 
-    fig, ax = plt.subplots(1, 1, figsize=figsize("full", ratio=0.48))
+    fig, ax = plt.subplots(1, 1, figsize=figsize("full", ratio=0.35))
     _shade_crisis(ax, dates, crisis)
     ax.axhline(0.0, color=INK["muted"], lw=0.7, ls=":", zorder=1)
 
@@ -159,21 +159,131 @@ def _vs_kalman_stats():
 # Figure 2 -- AP-PEN vs Kalman filter, time series
 # ---------------------------------------------------------------------------
 def fig_pinn_vs_kalman():
+    """The core real-data figure: all four recovered paths on one axes.
+
+    Two deliberate departures from the other figures in this module.
+
+    LEGEND, not direct labels. thesis_style prefers in-place labels, but its
+    own docstring reserves the legend for "when lines are too dense to label
+    in place" -- which is exactly this figure: MLP and AP-PEN track each other
+    to within 0.001 correlation, so two labels would land on top of each
+    other. The line styles still carry the distinction in greyscale, so the
+    legend is a convenience rather than the sole channel.
+
+    NO CRISIS SHADING. The shaded 2015/2016/2020 bands marked the windows of
+    a regime-switching bound that was TESTED AND DISCARDED (see the thesis
+    Section "No-Arbitrage and Economic Constraints" -- the ablation showed no
+    measurable difference and fixed constants were adopted instead). Shading
+    them here implies a model feature that does not exist. The dates where
+    the constraints actually do something are shown properly, per date and
+    per constraint, in fig_constraint_activity_timeline below.
+    """
     results, kf, common, kf_pos, pinn_pos, kf_common, _ = _vs_kalman_stats()
 
-    fig, ax = plt.subplots(1, 1, figsize=figsize("full", ratio=0.48))
-    crisis = _is_crisis(kf["dates"][kf_pos])
-    _shade_crisis(ax, common, crisis)
-    ax.plot(common, kf_common, color=C_BASELINE, lw=1.4, zorder=4)
+    fig, ax = plt.subplots(1, 1, figsize=figsize("full", ratio=0.35))
+    ax.axhline(0.0, color=INK["muted"], lw=0.7, ls=":", zorder=1)
+    ax.plot(common, kf_common, color=C_BASELINE, lw=1.4, zorder=4,
+            label="Kalman filter (benchmark)")
     for tag in TAGS:
         ax.plot(common, results[tag]["delta_hat"][pinn_pos], color=COLOUR[tag],
-                ls=LINESTYLE[tag], lw=1.0, alpha=0.85, zorder=3)
+                ls=LINESTYLE[tag], lw=1.0, alpha=0.85, zorder=3,
+                label=DISPLAY_NAME[tag])
     ax.set_ylabel(r"$\hat\delta_t$")
-    direct_label(ax, common[-1], kf_common[-1], "Kalman filter", C_BASELINE,
-                 dx=4, dy=0, ha="left")
+    ax.legend(loc="lower left", ncol=2, fontsize=7.5)
 
     fig.tight_layout()
     return fig
+
+
+# ---------------------------------------------------------------------------
+# Figure 3 -- when do the no-arbitrage constraints actually bind?
+# ---------------------------------------------------------------------------
+U_LEVEL, DELTA_MAX_L, DELTA_MIN = 0.30, 0.75, -0.30
+
+
+def _B_coeff(tau, kappa):
+    return -(1.0 - np.exp(-kappa * tau)) / kappa
+
+
+def _A_coeff(tau, r, kappa, alpha_Q, sigma1, sigma2, rho):
+    P, s2 = sigma1 * sigma2 * rho, sigma2 ** 2
+    return ((r - alpha_Q + 0.5 * s2 / kappa ** 2 - P / kappa) * tau
+            + 0.25 * s2 * (1.0 - np.exp(-2.0 * kappa * tau)) / kappa ** 3
+            + (alpha_Q * kappa + P - s2 / kappa) * (1.0 - np.exp(-kappa * tau)) / kappa ** 2)
+
+
+def _load_real_panel():
+    """Rebuild the (dates x 8) model panel exactly as constraint_activity.py does."""
+    df = pd.read_csv(REPO / "data" / "input" / "real" / "wti_analysis_ready.csv")
+    df = df.dropna(subset=["spot", "rate"])
+    df["date"] = pd.to_datetime(df["date"])
+    df = df.sort_values(["date", "tau"])
+    df["slot"] = df.groupby("date").cumcount()
+    df = df[df["slot"] < 8]
+    df = df[df.groupby("date")["slot"].transform("count") == 8]
+    piv = df.pivot(index="date", columns="slot", values="tau").sort_index()
+    return (pd.DatetimeIndex(piv.index),
+            piv.to_numpy().mean(axis=0),
+            np.log(df.pivot(index="date", columns="slot", values="settle").sort_index().to_numpy()),
+            df.groupby("date")["spot"].first().sort_index().to_numpy(),
+            df.groupby("date")["rate"].first().sort_index().to_numpy())
+
+
+def fig_constraint_activity_timeline():
+    """Companion to fig_pinn_vs_kalman: WHERE the hinges do their work.
+
+    Paired deliberately with the recovery figure -- same width, same aspect,
+    same x-axis -- so the two read as one argument: the recovery plot shows
+    AP-PEN (ARB) staying bounded, this shows the dates on which that bounding
+    is actually load-bearing rather than incidental.
+
+    The observed series is MODEL-FREE: it references only (F_obs, S, tau, r)
+    and so establishes whether a constraint has anything to bind against at
+    all, before any model is fitted. That is the honest baseline -- a hinge
+    that never binds is doing nothing regardless of how it is weighted.
+    """
+    dates, taus, logF, S, r = _load_real_panel()
+    kfc = pickle.load(open(REPO / "data" / "output" / "real_data" / "results"
+                           / "kappa_floor_comparison.pkl", "rb"))
+    arb = kfc["results"][(0.1, "APPINN_ARB")]
+    unc = kfc["results"][(0.1, "APPINN")]
+
+    ceiling = np.log(S)[:, None] + (r[:, None] + U_LEVEL) * taus[None, :]
+
+    def fitted_logF(v):
+        psi, d = v["psi"], np.asarray(v["delta_hat"])
+        A = _A_coeff(taus[None, :], r[:, None], psi["kappa"], psi["alpha_Q"],
+                     psi["sigma1"], psi["sigma2"], psi["rho"])
+        return np.log(S)[:, None] + _B_coeff(taus, psi["kappa"])[None, :] * d[:, None] + A
+
+    n_obs = (logF > ceiling).sum(axis=1)
+    n_unc = (fitted_logF(unc) > ceiling).sum(axis=1)
+    n_arb = (fitted_logF(arb) > ceiling).sum(axis=1)
+    floor_hit = np.asarray(arb["delta_hat"]) < DELTA_MIN - 1e-9
+
+    fig, ax = plt.subplots(1, 1, figsize=figsize("full", ratio=0.35))
+
+    ax.fill_between(dates, 0, n_obs, step="mid", color=INK["muted"], alpha=0.50,
+                    lw=0, zorder=1, label="observed panel (model-free)")
+    ax.plot(dates, n_unc, color=C_MODEL, lw=0.9, ls=LINESTYLE["APPINN"],
+            alpha=0.9, zorder=3, label="AP-PEN (no hinges)")
+    ax.plot(dates, n_arb, color=PALETTE["blue"], lw=1.6, zorder=4,
+            label="AP-PEN (ARB), hinges on")
+
+    # delta-floor activity: a rug, since it is a statement about the latent
+    # state rather than about prices and so does not share the y units.
+    if floor_hit.any():
+        ax.plot(dates[floor_hit], np.full(floor_hit.sum(), -0.55), "|",
+                color=PALETTE["blue"], ms=5, mew=1.0, zorder=5,
+                label=r"AP-PEN (ARB): $\hat\delta_t<\delta_{\min}$")
+
+    ax.set_ylabel("maturities breaching\ncash-and-carry ceiling")
+    ax.set_ylim(-0.9, max(3.2, n_obs.max() + 0.6))
+    ax.set_yticks(range(0, int(n_obs.max()) + 1))
+    ax.legend(loc="upper right", ncol=1, fontsize=7)
+
+    fig.tight_layout()
+    return fig, dict(obs=n_obs, unc=n_unc, arb=n_arb, floor=floor_hit, dates=dates)
 
 
 # ---------------------------------------------------------------------------
@@ -212,6 +322,18 @@ def main():
     path = save(fig, "real2_pinn_vs_kalman", directory=FIGDIR)
     plt.close(fig)
     print(f"wrote {path.relative_to(REPO)}")
+
+    fig, act = fig_constraint_activity_timeline()
+    path = save(fig, "real3_constraint_activity", directory=FIGDIR)
+    plt.close(fig)
+    print(f"wrote {path.relative_to(REPO)}")
+    n = len(act["dates"])
+    for k in ("obs", "unc", "arb"):
+        d = act[k]
+        print(f"  {k:4s} cac: {(d > 0).sum():4d}/{n} dates ({100*(d > 0).mean():.2f}%)"
+              f"  points {d.sum()}/{n*8} ({100*d.sum()/(n*8):.2f}%)")
+    print(f"  ARB delta at floor: {act['floor'].sum()}/{n} dates "
+          f"({100*act['floor'].mean():.2f}%)")
 
     fig, stats = fig_pinn_vs_kalman_summary()
     path = save(fig, "real2b_pinn_vs_kalman_summary", directory=FIGDIR)
