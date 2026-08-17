@@ -157,8 +157,8 @@ $S_t$ & Spot price of the underlying commodity \\
 $X_t$ & Log-spot price, $X_t = \ln S_t$ \\
 $F$, $\hat F$ & Futures price / model futures price, as a function of $(\tau, S, \delta)$ \\
 $A(\tau)$, $B(\tau)$ & Closed-form affine term-structure coefficients \\
-$r$ & Risk-free rate (used for $\mathbb{Q}$-measure pricing) \\
-$\mu$ & Real-world spot drift ($\mathbb{P}$ measure only) \\
+$r$ & Risk-free rate, used for $\mathbb{Q}$-measure pricing \\
+$\mu$ & Real-world spot drift, $\mathbb{P}$ measure only \\
 $m$ & Identified parameter combination, $m = \alpha^{\mathbb{Q}} + \rho\sigma_1\sigma_2/\kappa$ \\
 $u$ & Storage-cost bound used in the cash-and-carry no-arbitrage constraint \\
 $W_1, W_2$ & Correlated Brownian motions driving spot and convenience yield \\
@@ -171,7 +171,7 @@ $\phi$ & Trainable parameters of the AP-PEN network \\
 \begin{tabular}{@{}p{2.2cm}p{13.5cm}@{}}
 $\delta_t$ & Instantaneous convenience yield -- the latent inversion target \\
 $\delta_{\min}, \delta_{\max}$ & Lower / upper economic guardrail bounds on $\delta_t$ \\
-$\kappa$ & Convenience-yield mean-reversion speed ($\kappa > 0$) \\
+$\kappa$ & Convenience-yield mean-reversion speed, $\kappa > 0$ \\
 $\alpha^{\mathbb{P}}, \alpha^{\mathbb{Q}}$ & Long-run convenience yield under the physical / risk-neutral measure \\
 $\sigma_1, \sigma_2$ & Spot volatility, convenience-yield volatility \\
 $\rho$ & Brownian correlation, $\rho \in (-1,1)$ \\
@@ -199,6 +199,11 @@ MLE & Maximum likelihood estimation \\
 \begin{center}
 \textit{``If we knew what we were doing, it would not be called research, would it?''}\\[2pt]
 --- Albert Einstein
+\end{center}
+
+\vspace{1cm}
+\begin{center}
+    \includegraphics[width=0.2\textwidth]{figures/ucl_logo_bw.pdf}
 \end{center}
 
 \clearpage
@@ -279,13 +284,13 @@ Accurate estimation in practice is difficult: convenience yield is, by nature, a
 Physics-informed neural networks (PINNs), an architecture within the broader unsupervised learning paradigm, are a comparatively recent development. While they have been widely applied across engineering and physics, embedding governing differential equations directly into the learning process, their adoption in financial computing has emerged only recently. Whack-a-Mole Online-Learning (WamOL) is one such example, integrating self-adaptive weights and online learning into the PINN framework. This thesis extends the work of Hoshisashi et al.~\cite{Hoshisashi2024Whack-a-moleSurface}, adapting WamOL to commodity markets to estimate the instantaneous convenience yield in the Gibson–Schwartz (GS) two-factor model. What carries over from WamOL is the gradient-norm loss balancer and the derivative-constrained inequality-penalty mechanism (\S~\ref{sec:lit_pinns}); the PDE-residual loss term does not, since the exact affine imposition at the centre of AP-PEN (\S~\ref{sec:pinn_inversion}) satisfies the pricing PDE by construction and leaves no residual to penalise.
 This thesis therefore asks whether AP-PEN, a hard-constrained neural inversion of this kind, can recover convenience yield from observed futures term structure with comparable or superior accuracy to Kalman filter-based methods, while respecting the no-arbitrage structure of the Gibson–Schwartz PDE. Building on the Gibson--Schwartz PDE and its closed-form pricing equation, the aim of this thesis is to extend the WamOL framework to estimate the latent convenience yield in commodity markets using the Gibson--Schwartz two-factor model. The contributions and objectives of this thesis are as follows:
 
-\begin{itemize}[noitemsep]
+\begin{enumerate}[noitemsep]
     \item \textbf{Affine-partitioned latent-state inversion:} Separate the Gibson--Schwartz solution into analytical affine maps, $A(\tau)$ and $B(\tau)$, and a neural convenience-yield path, $\hat{\delta}_\phi(t)$, satisfying the pricing PDE by construction and replacing soft residual losses with hard structural constraints, transition likelihoods, and inequality penalties (\S\ref{sec:pinn_inversion}).
     \item \textbf{Identifiability analysis of the Gibson--Schwartz model:} Establish which risk-neutral parameters a futures panel can identify at all, so that the inversion is asked only for what the data can supply. We prove a futures panel determines only three parameter combinations $(\kappa, \sigma_2, m)$, where $m = \alpha^{\mathbb{Q}} + \rho\sigma_1\sigma_2/\kappa$; $\sigma_1$, $\rho$, and $\alpha^{\mathbb{Q}}$ are fundamentally unidentifiable from prices alone by any estimator (\S~\ref{sec:identifiability}).
     \item \textbf{Commodity-specific economic constraints:} Formulate model-free inequality constraints tailored to physical markets, evaluated strictly on observations $(S_t, \tau, r_t)$ and the recovered path, avoiding model-based derivative constraints entirely, and measure whether they bind (\S\ref{sec:constraints}, \S\ref{sec:real_data}).
     \item \textbf{Validation on synthetic and real data:} Generate synthetic market data via Euler--Maruyama Monte Carlo simulation parameterised via Schwartz~\cite{Schwartz1997TheHedging} (\S\ref{sec:experimental_design}); validate against the ground-truth convenience yield on the synthetic dataset (\S\ref{sec:synthetic}); and apply the model to real Refinitiv WTI futures data, including out-of-sample pricing (\S\ref{sec:real_data}).
     \item \textbf{Kalman filter benchmarking:} Compare AP-PEN's predictions against a maximum-likelihood Kalman filter baseline fitted to the same WTI panel (\S\ref{sec:real_data}, \S\ref{sec:kalman}).
-\end{itemize}
+\end{enumerate}
 
 
 % --- 1.3 Recent advances: PINNs and WamOL ---
@@ -468,7 +473,7 @@ with $\hat{\mathcal{L}}_b$ and $\hat{\mathcal{L}}_f$ defined analogously for the
 
 \subsection{The Gibson--Schwartz Model}
 \label{sec:gs_model}
-To price futures correctly, we must view the market through a "risk-neutral" lens ($\mathbb{Q}$) rather than a "real-world" lens ($\mathbb{P}$). This mathematical shift ensures the model respects the fundamental rule of no-arbitrage, meaning no risk-free profits are possible~\cite{girsanov1960transforming, harrison1981martingales, Schwartz1997TheHedging} (Appendix~\ref{app:gs_derivation}). We bridge these two views using Girsanov's theorem~\cite{girsanov1960transforming}, which adjusts the real-world randomness by a "market price of risk" ($\lambda$) via $dW^{\mathbb{P}}_i = dW^{\mathbb{Q}}_i - \lambda_i dt$~\cite{Schwartz1997TheHedging}. Because the physical commodity ($S_t$) is an actively traded asset, the market rigidly defines its risk price ($\lambda_1$): forcing the expected return to equal the risk-free rate minus the convenience yield ($r - \delta_t$) fixes $\lambda_1 = \frac{\mu - r}{\sigma_1}$ and completely removes the real-world drift ($\mu$). Conversely, the convenience yield ($\delta_t$) is an untraded benefit of ownership, so its risk price ($\lambda_2$) cannot be uniquely determined from market data. To preserve identifiability, we fix $\lambda_2$ exogenously (\S\ref{sec:pinn_inversion}), which simply shifts the convenience yield's long-run average to a risk-neutral level: $\longrun^{\mathbb{Q}} = \longrun^{\mathbb{P}} -\sigma_2\lambda_2/\meanrev$. Under this risk-neutral framework, the spot price $S_t$ and convenience yield $\convyield_t$ evolve as:
+To price futures correctly, we must view the market through a "risk-neutral" lens $\mathbb{Q}$ rather than a "real-world" lens $\mathbb{P}$. This mathematical shift ensures the model respects the fundamental rule of no-arbitrage, meaning no risk-free profits are possible~\cite{girsanov1960transforming, harrison1981martingales, Schwartz1997TheHedging} (Appendix~\ref{app:gs_derivation}). We bridge these two views using Girsanov's theorem~\cite{girsanov1960transforming}, which adjusts the real-world randomness by a "market price of risk" $\lambda$ via $dW^{\mathbb{P}}_i = dW^{\mathbb{Q}}_i - \lambda_i dt$~\cite{Schwartz1997TheHedging}. Because the physical commodity $S_t$ is an actively traded asset, the market rigidly defines its risk price $\lambda_1$: forcing the expected return to equal the risk-free rate minus the convenience yield $r - \delta_t$ fixes $\lambda_1 = \frac{\mu - r}{\sigma_1}$ and completely removes the real-world drift $\mu$. Conversely, the convenience yield $\delta_t$ is an untraded benefit of ownership, so its risk price $\lambda_2$ cannot be uniquely determined from market data. To preserve identifiability, we fix $\lambda_2$ exogenously (\S\ref{sec:pinn_inversion}), which simply shifts the convenience yield's long-run average to a risk-neutral level: $\longrun^{\mathbb{Q}} = \longrun^{\mathbb{P}} -\sigma_2\lambda_2/\meanrev$. Under this risk-neutral framework, the spot price $S_t$ and convenience yield $\convyield_t$ evolve as:
 
 \begin{equation}
   \label{eq:gs_spot}
@@ -542,11 +547,11 @@ Grouping the closed-form $A(\tau)$ (Appendix~\ref{app:gs_pde}, Eq.~\ref{eq:app_A
           + c_3\big(1 - e^{-\meanrev\tau}\big).
 \end{equation}
 
-Defining the cross-term $P := \rho\sigma_1\sigma_2$ and the composite $m$,
+Defining the cross-term $\sigma_{12} := \rho\sigma_1\sigma_2$ and the composite $m$,
 
 \begin{equation}
   \label{eq:identified_composite}
-  m := \longrun^{\mathbb{Q}} + \frac{P}{\meanrev}
+  m := \longrun^{\mathbb{Q}} + \frac{\sigma_{12}}{\meanrev}
      = \longrun^{\mathbb{Q}} + \frac{\rho\sigma_1\sigma_2}{\meanrev},
 \end{equation}
 
@@ -585,7 +590,7 @@ Crucially, we avoid learning the risk-neutral long-run level $\alpha^{\mathbb{Q}
 
 To test robustness to misspecified risk premiums, our synthetic experiments generate data with $\lambda_2 = 0.10$ but train using $\lambda_2^{\text{fixed}} = 0.13$ (+30\%). For real WTI data, we ensure a fair comparison by fixing $\lambda_2$ to the Kalman filter's MLE estimate.
 
-Several parameters require strict physical bounds: positive volatilities ($\sigma_1, \sigma_2 > 0$), valid correlations ($\rho \in [-1, 1]$), and strictly positive mean reversion ($\kappa > 0$). To enforce these realities during unconstrained optimisation, we transform $\sigma_1$ and $\sigma_2$ via a softplus, $\rho$ via $\tanh$, and $\alpha^{\mathbb{P}}$ via the identity. For the mean-reversion rate, we apply a floored softplus: $\kappa = 0.1 + \mathrm{softplus}(\cdot)$.
+Several parameters require strict physical bounds: positive volatilities, $\sigma_1, \sigma_2 > 0$; valid correlations, $\rho \in [-1, 1]$; and strictly positive mean reversion, $\kappa > 0$. To enforce these realities during unconstrained optimisation, we transform $\sigma_1$ and $\sigma_2$ via a softplus, $\rho$ via $\tanh$, and $\alpha^{\mathbb{P}}$ via the identity. For the mean-reversion rate, we apply a floored softplus: $\kappa = 0.1 + \mathrm{softplus}(\cdot)$.
 
 This $\kappa_{\min} = 0.1$ floor is more than a numerical safeguard. Below $\kappa = 0.1$, the mean-reversion half-life exceeds 6.9 years~\cite{uhlenbeck1930theory} (Appendix~\ref{app:supplementary}), which is far longer than our maximum 1.88-year WTI contract (Table~\ref{tab:data_stats}). Because this reversion is too slow to observe in the data, the curve flattens ($B(\tau) \approx -\tau$) and the convenience yield becomes indistinguishable from basic cost-of-carry~\cite{cox1981relation}. The floor simply prevents the optimiser from stalling in this unidentifiable blind spot without restricting realistic market values.
 
@@ -884,7 +889,7 @@ parameters at each epoch, training is split into three sequential steps:
     $\hat{\mathcal{L}}_{\text{SDE}}$; everything else, including $\kappa$ and
     $\sigma_2$, is frozen via stop-gradient.
 \end{itemize}
-This segregation enforces measure discipline rather than strict identification. It prevents the real-world ($\mathbb{P}$) and risk-neutral ($\mathbb{Q}$) parameter groups from pulling in conflicting directions during a single update. However, it does not perfectly align parameters with their identifying information. While Step 2(b) correctly isolates $\alpha^{\mathbb{P}}$ using only the transition density, Step 2(a) updates $\sigma_1$ and $\rho$ alongside the identifiable parameters ($\kappa, \sigma_2, m$), even though $\sigma_1$ and $\rho$ remain structurally unidentified from cross-sectional data (\S~\ref{sec:identifiability}).
+This segregation enforces measure discipline rather than strict identification. It prevents the real-world $\mathbb{P}$ and risk-neutral $\mathbb{Q}$ parameter groups from pulling in conflicting directions during a single update. However, it does not perfectly align parameters with their identifying information. While Step 2(b) correctly isolates $\alpha^{\mathbb{P}}$ using only the transition density, Step 2(a) updates $\sigma_1$ and $\rho$ alongside the identifiable parameters $\kappa, \sigma_2, m$, even though $\sigma_1$ and $\rho$ remain structurally unidentified from cross-sectional data (\S~\ref{sec:identifiability}).
 
 We use a separate Adam optimiser for each step instead of zeroing out gradients in a single shared optimiser. Adam builds momentum using a running average of past gradients~\cite{kingma2014adam}. If we feed it a zero gradient for a frozen parameter, Adam interprets this as a signal to slow down, which degrades its momentum. Separate optimisers allow us to completely pause the update process for inactive parameters, keeping their momentum perfectly intact for their next turn.
 
@@ -911,13 +916,13 @@ w_k(p) =
 \label{eq:lambda-update}
 \end{equation}
 
-where $m \in [0,1)$ is the momentum ($m=0.5$ here), and $j$ indexes all active channels (which expands to $\{\text{data}, \text{SDE}, h\text{-cac}, h\text{-rcac}, h\text{-}\delta\}$ for the AP-PEN (ARB) variant in \S~\ref{sec:constraints}). 
+where $m \in [0,1)$ is the momentum, $m=0.5$ here, and $j$ indexes all active channels (which expands to $\{\text{data}, \text{SDE}, h\text{-cac}, h\text{-rcac}, h\text{-}\delta\}$ for the AP-PEN (ARB) variant in \S~\ref{sec:constraints}). 
 
-Equation~\ref{eq:lambda-update} generalises the scheme in~\cite{Hoshisashi2024Physics-InformedPDEs} by introducing tunable momentum. This applies an exponential moving average (EMA) to smooth the channel weights, cleanly defining the balance between old and new weights (e.g., $m=0.5$ retains 50\% of the previous weight). Additionally, if a gradient momentarily vanishes ($g_k(p)=0$), the momentum smoothly nudges $\lambda_k$ toward 1 rather than hard-resetting it.
+Equation~\ref{eq:lambda-update} generalises the scheme in~\cite{Hoshisashi2024Physics-InformedPDEs} by introducing tunable momentum. This applies an exponential moving average (EMA) to smooth the channel weights, cleanly defining the balance between old and new weights (e.g., $m=0.5$ retains 50\% of the previous weight). Additionally, if a gradient momentarily vanishes, $g_k(p)=0$, the momentum smoothly nudges $\lambda_k$ toward 1 rather than hard-resetting it.
 
 Because the stop-gradient severs $\hat{\mathcal{L}}_{\text{SDE}}$'s gradient into $\phi$ (\S~\ref{sec:multi_obj}), this channel contributes nothing to Step 1. During Step 1, $\psi$ is frozen, meaning the target parameter support $\Theta_{\text{SDE}}$ reduces strictly to $\phi$. Consequently, $g_{\text{SDE}}$ is exactly zero and drops out of the balancing weights.
 
-For the standard AP-PEN variant, this leaves $\hat{\mathcal{L}}_{\text{data}}$ as the single active channel in Step 1. The balancer may therefore have no material effect on path recovery, a consequence we test empirically in \S~\ref{sec:synthetic}. However, this limitation vanishes in the AP-PEN (ARB) variant: the no-arbitrage hinge terms ($\hat{\mathcal{L}}_{h,\text{cac}}$, $\hat{\mathcal{L}}_{h,\text{rcac}}$, $\hat{\mathcal{L}}_{h,\delta}$) introduced in \S~\ref{sec:constraints} maintain live gradients into $\phi$, allowing the balancer to actively manage multiple channels.
+For the standard AP-PEN variant, this leaves $\hat{\mathcal{L}}_{\text{data}}$ as the single active channel in Step 1. The balancer may therefore have no material effect on path recovery, a consequence we test empirically in \S~\ref{sec:synthetic}. However, this limitation vanishes in the AP-PEN (ARB) variant: the no-arbitrage hinge terms $\hat{\mathcal{L}}_{h,\text{cac}}$, $\hat{\mathcal{L}}_{h,\text{rcac}}$, $\hat{\mathcal{L}}_{h,\delta}$ introduced in \S~\ref{sec:constraints} maintain live gradients into $\phi$, allowing the balancer to actively manage multiple channels.
 
 \subsection{No-Arbitrage and Economic Constraints}
 \label{sec:constraints}
@@ -936,7 +941,7 @@ The interest rate $r$, annualised storage cost $u = 0.30$, and convenience yield
 
 While these constants align with the literature, we acknowledge a mild use of evaluation data: we cross-checked their specific values against violation rates on our WTI panel. We initially tested dynamically widening the bounds during crisis years (2015, 2016, and 2020) when a tighter $u=0.10$ is frequently violated. However, an ablation study showed this regime-switching offered no measurable improvement in path recovery once training converged, so we adopted universally safe, fixed constants.
 
-With $r$, $u$, and $\delta_{\max}$ held constant, $\kappa$ is the sole learned parameter influencing these bounds (via $\hat{F}_{i,k}$). We enforce them through the following two losses:
+With $r$, $u$, and $\delta_{\max}$ held constant, $\kappa$ is the sole learned parameter influencing these bounds via $\hat{F}_{i,k}$. We enforce them through the following two losses:
 
 
 \begin{equation}
@@ -1083,7 +1088,7 @@ To ensure robustness, all neural network results are reported as the mean $\pm$ 
 
 \paragraph{Real WTI panel.} We use dated quarterly WTI futures (Mar/Jun/Sep/Dec, Cushing delivery) instead of rolling generics to compute an exact time-to-maturity $\tau = (T-t)/365$.\footnote{Entitlement restrictions blocked chain expansion in Refinitiv Workspace~\cite{refinitiv2026eikon}, requiring individual contract queries. Archive RIC suffixes vary: single-digit year with \texttt{\^{}1} (2015--2019), single-digit year with \texttt{\^{}2} (2020--2023), and two-digit year with \texttt{\^{}2} (2024--2026).} Expiries follow the CME last-trading-day rule, perfectly matching Refinitiv's expiry field across 36 cross-validated contracts~\cite{refinitiv2026eikon}. Spot prices and financing rates come from the CLc1 continuation and FRED DGS3MO series~\cite{refinitiv2026eikon, fred2026dgs3mo}, respectively. We drop the 2020-04-20 observation because its $-\$37.63$ front-month print is a liquidation artefact, and several model constructs require $S_t > 0$.
 
-For each date, we keep the eight nearest contracts and drop any dates that have fewer than eight. To make the data easier to process in batches, we fix the time-to-maturity ($\tau$) for each of the eight slots to its overall average, rather than tracking the exact days remaining as they shrink over time. While this makes training simpler, it does lose some temporal accuracy, which we discuss as a limitation in \S~\ref{sec:conclusion}.
+For each date, we keep the eight nearest contracts and drop any dates that have fewer than eight. To make the data easier to process in batches, we fix the time-to-maturity $\tau$ for each of the eight slots to its overall average, rather than tracking the exact days remaining as they shrink over time. While this makes training simpler, it does lose some temporal accuracy, which we discuss as a limitation in \S~\ref{sec:conclusion}.
 
 Table~\ref{tab:data_stats} shows how we filtered the raw data down to the final $2{,}770$ dates (2 January 2015 to 19 February 2026). Section~\ref{sec:real_data} visualises the term structure and market states of this final dataset.
 
@@ -1321,35 +1326,20 @@ $\alpha^{\mathbb{P}}$ & $0.1007$ & --- & $0.0120$ & $4.3741$ & $0.1900$ \\
 }
 \end{table}
 
-Although Table~\ref{tab:real_kalman_comparison} shows strong path recovery for AP-PEN (ARB), Table~\ref{tab:real_psi_pathology} reveals severe underlying parameter pathologies, mirroring synthetic findings and the theoretical limits predicted in \S\ref{sec:identifiability}. When the hinge loss terms are active without parameter bounds, the mean-reversion speed $\kappa$ collapses to near zero ($0.0028$). Spot volatility $\sigma_1$ ($0.0051$) and correlation $\rho$ ($-0.8198$) also collapse, with the sign of $\rho$ inverted relative to every other calibration. While individual unidentifiable parameters carry little standalone meaning (\S\ref{sec:identifiability}), the simultaneous collapse of $\kappa$, $\sigma_1$, $\rho$, $\alpha^{\mathbb{Q}}$ ($-4.46$), and $m$ ($-4.54$) diagnoses a structural failure mode rather than arbitrary convergence among equivalent solutions. Imposing a lower bound $\kappa_{\min}=0.1$ causes the model to converge exactly onto the floor across five random restarts ($\kappa = 0.100 \pm 0.000$), confirming that the constraint mechanism drives this degeneracy rather than stochastic variation. Ultimately, AP-PEN (ARB) achieves the strongest Kalman $\delta_t$ recovery only by pushing parameters into a degenerate state, while pinning its recovered path directly against the lower boundary ($\hat{\delta}_t = -0.301 \approx \delta_{\min} = -0.30$) rather than finding a genuinely superior economic solution.
+Although Table~\ref{tab:real_kalman_comparison} shows strong path recovery for AP-PEN (ARB), Table~\ref{tab:real_psi_pathology} reveals severe underlying parameter pathologies, mirroring synthetic findings and the theoretical limits predicted in \S\ref{sec:identifiability}. When the hinge loss terms are active without parameter bounds, the mean-reversion speed $\kappa$ collapses to near zero ($0.0028$). Spot volatility $\sigma_1$ ($0.0051$) and correlation $\rho$ ($-0.8198$) also collapse, with a negative $\rho$ relative to every other calibration. While individual unidentifiable parameters carry little stand-alone meaning (\S\ref{sec:identifiability}), the simultaneous collapse of $\kappa$, $\sigma_1$, $\rho$, $\alpha^{\mathbb{Q}}$ ($-4.46$), and $m$ ($-4.54$) diagnoses a structural failure mode rather than arbitrary convergence among equivalent solutions. Imposing a lower bound $\kappa_{\min}=0.1$ causes the model to converge exactly onto the floor across five random restarts ($\kappa = 0.100 \pm 0.000$), confirming that the constraint mechanism drives this degeneracy rather than stochastic variation. Ultimately, AP-PEN (ARB) achieves the strongest Kalman $\delta_t$ recovery only by pushing parameters into a degenerate state, while pinning its recovered path directly against the lower boundary ($\hat{\delta}_t = -0.301 \approx \delta_{\min} = -0.30$) rather than finding a genuinely superior economic solution.
 
 
+\section{Future Work \& Wider Context}
+\label{sec:future_work_conetxt}
+The work presented here offers several avenues to extend and modify AP-PEN. A natural next step is adapting the architecture to non-affine commodity models lacking closed-form solutions, such as the state-dependent volatility framework by Schwartz-Trolle~\cite{chen2017pricing} and the 3/2 model~\cite{kouarfate2021explicit}. Because both account for stochastic volatility alongside convenience yields, their PDE residuals serve as direct commodity analogues to the Dupire model used in WamOL~\cite{Hoshisashi2024Whack-a-moleSurface, dupire1994pricing}, re-introducing the PINN machinery that was removed for this use case. Additionally, integrating Fourier-feature embeddings could improve AP-PEN's capacity to capture fine-scale variance in convenience-yield dynamics~\cite{tancik2020fourier}. Finally, the commodity-specific no-arbitrage and economic constraint losses developed here could be extended to include genuine derivative-constraint terms mirroring~\cite{Hoshisashi2024Physics-InformedPDEs} to govern the shape of the forward curve, alongside targeted loss constraints on the volatility surfaces of the proposed model extensions.
 
-%% ════════════════════════════════════════════════════════════════════════════
-%% 5. WIDER CONTEXT
-%% Rubric-mandated. Kept as its own numbered section so a marker can find it in
-%% the contents rather than buried inside Results. ~0.4 pp.
-%% ════════════════════════════════════════════════════════════════════════════
+Broadly, accurate and timely commodity pricing propagates through supply chains, energy security, and food prices, ultimately impacting consumers worldwide. This work lays the foundation for developing efficient modern approaches to estimate latent states in commodity markets, enabling optimal inventory and resource allocation at a fraction of the current computational cost. Furthermore, while such estimators have historically been restricted to large institutions with vast compute, this framework democratises that capability for smaller market participants.
 
-\clearpage
-\section{Wider Context}
-\label{sec:disc_wider}
-
-% \todo{BUDGET ~0.4 pp; check rubric weighting before allocating more. Cover in
-%   2--3 compact paragraphs, not a bulleted list: societal impact (commodity price
-%   risk propagates to supply chains, energy security, food prices);
-%   sustainability (better convenience-yield estimation supports more efficient
-%   inventory and resource allocation, set against the computational energy cost
-%   of training); ethics and access (estimators of this kind require
-%   institutional-grade data and GPU compute, concentrating the advantage among
-%   large participants); and safety (mis-specified constraint bounds could produce
-%   confidently wrong risk signals -- tie this to the parameter pathology in
-%   \S\ref{sec:real_data} rather than treating it abstractly).}
 
 %% ════════════════════════════════════════════════════════════════════════════
 %% 6. CONCLUSION AND FUTURE WORK  (~0.8 pp. Do NOT restate the abstract.)
 %% ════════════════════════════════════════════════════════════════════════════
-\section{Conclusion and Future Work}
+\section{Conclusion}
 \label{sec:conclusion}
 
 % \todo{BUDGET ~0.8 pp. No separate Limitations subsection exists any more --
@@ -1411,7 +1401,7 @@ I sincerely thank my supervisors, Dr. Lama Hamadeh and Dr. Carolyn Phelan, for t
 
 \clearpage
 \section*{Declaration of Artificial Intelligence (AI) Use (Cat. 2)}
-I acknowledge the use of Claude/Claude Code (Anthropic, ) as an assistive role ...
+I acknowledge the use of Claude/ Claude Code (Anthropic, 2026, https://claude.ai) in an assistive role for planning, reviewing, and writing and coding tasks pertaining to this project. 
 \bibliographystyle{IEEEtran}
 \bibliography{references}
 
@@ -1430,6 +1420,12 @@ I acknowledge the use of Claude/Claude Code (Anthropic, ) as an assistive role .
 %% ════════════════════════════════════════════════════════════════════════════
 \clearpage
 \appendix
+
+\section{Code}
+The project code is available on Github:~\url{https://github.com/Metahemeralism/AP-PEN}
+
+
+
 
 
 \section{Derivation of the Futures Pricing PDE and Closed Form}
