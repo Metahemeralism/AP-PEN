@@ -142,6 +142,30 @@
 \begin{document}
 
 %% ════════════════════════════════════════════════════════════════════════════
+%% COVER SHEET — the very first thing in the document, before the ToC and
+%% Nomenclature. Does not count toward the 20-page body limit. Requires a
+%% cover_sheet.pdf in the same directory as this file (or give a relative
+%% path); \includepdf pulls in every page of it as-is, with no header/footer
+%% or page-counter interaction, so it is safe to place ahead of the
+%% \setcounter{page}{1} reset later at the title block.
+%% ════════════════════════════════════════════════════════════════════════════
+\includepdf[pages=-]{cover_sheet.pdf}
+
+%% ════════════════════════════════════════════════════════════════════════════
+%% TABLE OF CONTENTS — placed before the nomenclature page; same not-counted-
+%% toward-the-20-page-limit status as the nomenclature and references sections.
+%% ════════════════════════════════════════════════════════════════════════════
+\thispagestyle{empty}
+\begin{center}
+{\Large\scshape Table of Contents}
+\end{center}
+\vspace{0.4cm}
+\makeatletter
+\@starttoc{toc}
+\makeatother
+\clearpage
+
+%% ════════════════════════════════════════════════════════════════════════════
 %% NOMENCLATURE — placed before the cover sheet / title block, does not count
 %% toward the 20-page body limit (same status as the references section).
 %% ════════════════════════════════════════════════════════════════════════════
@@ -222,15 +246,16 @@ MLE & Maximum likelihood estimation \\
 %% currently ~15%. Every page freed in Methodology goes to Section 4.
 %% Going over the limit is a flat 10-percentage-point deduction.
 
-%% ── COVER SHEET ─────────────────────────────────────────────────────────────
-%% Import the cover sheet (does NOT count toward 20-page limit).
-%% Compile cover_sheet.tex separately first, then include the PDF here:
-% \includepdf[pages=-]{cover_sheet.pdf}
+%% (Cover sheet is now included right after \begin{document}, ahead of the
+%% ToC/Nomenclature, not here.)
 
 
 %% ── TITLE BLOCK ─────────────────────────────────────────────────────────────
 %% Conference/journal style: thick rules + small caps title + author block.
-
+%% Page counter reset here: the ToC and Nomenclature pages precede this one
+%% but carry no visible number (\thispagestyle{empty}), so this title/abstract
+%% page is where visible numbering should start, at "1".
+\setcounter{page}{1}
 \thesistitle
 \thispagestyle{fancy}  % Keep header on title page
 
@@ -279,17 +304,17 @@ No-Arbitrage Constraints
 
 Commodities such as crude oil are primarily traded via futures contracts: standardised agreements to buy or sell a fixed quantity of the underlying asset at a predetermined price on a set future date. These contracts allow speculators and hedgers to take positions on future price movements, and the resulting market activity makes futures prices a key mechanism for price discovery, aggregating participants' collective expectations of supply and demand. In crude oil markets specifically, the relationship between spot and futures prices is further shaped by the cost and benefit of physical storage, captured in the concept of convenience yield: the implicit return accruing to holders of the physical commodity rather than a futures contract. Estimating this variable is vital for risk management, hedging and procurement. This thesis focuses on WTI crude oil, the most widely benchmarked and liquid contract in the global oil market, as the setting for this estimation problem.
 
-Accurate estimation in practice is difficult: convenience yield is, by nature, a \textit{latent} state and is not directly observable. Traditional approaches employ Kalman filters to reconstitute and track hidden state variables in commodity pricing models~\cite{Schwartz1997TheHedging}. While highly useful, these assume linearity and Gaussian noise, ignoring the Partial Differential Equation (PDE) and no-arbitrage constraints inherent to the model.
+Accurate estimation in practice is difficult: convenience yield is, by nature, a \textit{latent} state and is not directly observable. Traditional approaches employ Kalman filters (KFs) to reconstitute and track hidden state variables in commodity pricing models~\cite{Schwartz1997TheHedging}. While highly useful, these assume linearity and Gaussian noise, ignoring the Partial Differential Equation (PDE) and no-arbitrage constraints inherent to the model.
 
-Physics-informed neural networks (PINNs), an architecture within the broader unsupervised learning paradigm, are a comparatively recent development. While they have been widely applied across engineering and physics, embedding governing differential equations directly into the learning process, their adoption in financial computing has emerged only recently. Whack-a-Mole Online-Learning (WamOL) is one such example, integrating self-adaptive weights and online learning into the PINN framework. This thesis extends the work of Hoshisashi et al.~\cite{Hoshisashi2024Whack-a-moleSurface}, adapting WamOL to commodity markets to estimate the instantaneous convenience yield in the Gibson–Schwartz (GS) two-factor model. What carries over from WamOL is the gradient-norm loss balancer and the derivative-constrained inequality-penalty mechanism (\S~\ref{sec:lit_pinns}); the PDE-residual loss term does not, since the exact affine imposition at the centre of AP-PEN (\S~\ref{sec:pinn_inversion}) satisfies the pricing PDE by construction and leaves no residual to penalise.
-This thesis therefore asks whether AP-PEN, a hard-constrained neural inversion of this kind, can recover convenience yield from observed futures term structure with comparable or superior accuracy to Kalman filter-based methods, while respecting the no-arbitrage structure of the Gibson–Schwartz PDE. Building on the Gibson--Schwartz PDE and its closed-form pricing equation, the aim of this thesis is to extend the WamOL framework to estimate the latent convenience yield in commodity markets using the Gibson--Schwartz two-factor model. The contributions and objectives of this thesis are as follows:
+Physics-informed neural networks (PINNs), an architecture within the broader unsupervised learning paradigm, are a comparatively recent development. While they have been widely applied across engineering and physics, embedding governing differential equations directly into the learning process, their adoption in financial computing has emerged only recently. Whack-a-mole Online Learning (WamOL) is one such example, integrating self-adaptive weights and online learning into the PINN framework. This thesis extends the work of Hoshisashi et al.~\cite{Hoshisashi2024Whack-a-moleSurface}, adapting WamOL to commodity markets to estimate the instantaneous convenience yield in the Gibson–Schwartz (GS) two-factor model. What carries over from WamOL is the gradient-norm loss balancer and the derivative-constrained inequality-penalty mechanism (\S~\ref{sec:lit_pinns}); the PDE-residual loss term does not, since the exact affine imposition at the centre of AP-PEN (\S~\ref{sec:pinn_inversion}) satisfies the pricing PDE by construction and leaves no residual to penalise.
+This thesis therefore asks whether AP-PEN, a hard-constrained neural inversion of this kind, can recover convenience yield from observed futures term structure with comparable or superior accuracy to KF-based methods, while respecting the no-arbitrage structure of the GS PDE. Building on the GS PDE and its closed-form pricing equation, the aim of this thesis is to extend the WamOL framework to estimate the latent convenience yield in commodity markets using the GS two-factor model. The contributions and objectives of this thesis are as follows:
 
 \begin{enumerate}[noitemsep]
-    \item \textbf{Affine-partitioned latent-state inversion:} Separate the Gibson--Schwartz solution into analytical affine maps, $A(\tau)$ and $B(\tau)$, and a neural convenience-yield path, $\hat{\delta}_\phi(t)$, satisfying the pricing PDE by construction and replacing soft residual losses with hard structural constraints, transition likelihoods, and inequality penalties (\S\ref{sec:pinn_inversion}).
+    \item \textbf{Affine-partitioned latent-state inversion:} Separate the GS solution into analytical affine maps, $A(\tau)$ and $B(\tau)$, and a neural convenience-yield path, $\hat{\delta}_\phi(t)$, satisfying the pricing PDE by construction and replacing soft residual losses with hard structural constraints, transition likelihoods, and inequality penalties (\S\ref{sec:pinn_inversion}).
     \item \textbf{Identifiability analysis of the Gibson--Schwartz model:} Establish which risk-neutral parameters a futures panel can identify at all, so that the inversion is asked only for what the data can supply. We prove a futures panel determines only three parameter combinations $(\kappa, \sigma_2, m)$, where $m = \alpha^{\mathbb{Q}} + \rho\sigma_1\sigma_2/\kappa$; $\sigma_1$, $\rho$, and $\alpha^{\mathbb{Q}}$ are fundamentally unidentifiable from prices alone by any estimator (\S~\ref{sec:identifiability}).
     \item \textbf{Commodity-specific economic constraints:} Formulate model-free inequality constraints tailored to physical markets, evaluated strictly on observations $(S_t, \tau, r_t)$ and the recovered path, avoiding model-based derivative constraints entirely, and measure whether they bind (\S\ref{sec:constraints}, \S\ref{sec:real_data}).
     \item \textbf{Validation on synthetic and real data:} Generate synthetic market data via Euler--Maruyama Monte Carlo simulation parameterised via Schwartz~\cite{Schwartz1997TheHedging} (\S\ref{sec:experimental_design}); validate against the ground-truth convenience yield on the synthetic dataset (\S\ref{sec:synthetic}); and apply the model to real Refinitiv WTI futures data, including out-of-sample pricing (\S\ref{sec:real_data}).
-    \item \textbf{Kalman filter benchmarking:} Compare AP-PEN's predictions against a maximum-likelihood Kalman filter baseline fitted to the same WTI panel (\S\ref{sec:real_data}, \S\ref{sec:kalman}).
+    \item \textbf{Kalman filter benchmarking:} Compare AP-PEN's predictions against a maximum-likelihood KF baseline fitted to the same WTI panel (\S\ref{sec:real_data}, \S\ref{sec:kalman}).
 \end{enumerate}
 
 
@@ -363,7 +388,7 @@ dW_1^{\mathbb{P}}\, dW_2^{\mathbb{P}} = \rho\, dt, \label{eq:gs_corr}
 
 where $\mu$ is the expected total return on the spot commodity, $\kappa$ is the speed of mean-reversion, $\alpha^{\mathbb{P}}$ is the long-run mean of the convenience yield under the physical (real-world) measure $\mathbb{P}$, $\sigma_1$ and $\sigma_2$ are the volatilities, and $\rho$ is the instantaneous correlation between the Brownian motions $W_1^{\mathbb{P}}$ and $W_2^{\mathbb{P}}$. The risk-free rate $r$ does not appear here; it enters through the change to the risk-neutral measure (\S~\ref{sec:gs_model}).
 
-Crucially, the mean reversion in the Gibson–Schwartz model sits on $\delta_t$, not on the spot price in levels; the spot inherits reversion-like behaviour only indirectly, through the $(\mu-\delta_t)$ drift. By giving $\delta_t$ its own stochastic dynamics rather than tying it deterministically to $S_t$, the framework captures the contango-backwardation regime shifts that single-factor models cannot. Schwartz subsequently extended this to a three-factor model incorporating stochastic interest rates, and provided an empirical comparison of the one-, two-, and three-factor specifications~\cite{Schwartz1997TheHedging}. This thesis builds on the two-factor formulation for its tractability.
+Crucially, the mean reversion in the GS model sits on $\delta_t$, not on the spot price in levels; the spot inherits reversion-like behaviour only indirectly, through the $(\mu-\delta_t)$ drift. By giving $\delta_t$ its own stochastic dynamics rather than tying it deterministically to $S_t$, the framework captures the contango-backwardation regime shifts that single-factor models cannot. Schwartz subsequently extended this to a three-factor model incorporating stochastic interest rates, and provided an empirical comparison of the one-, two-, and three-factor specifications~\cite{Schwartz1997TheHedging}. This thesis builds on the two-factor formulation for its tractability.
 
 \subsection{Latent State Estimation in Commodity Models}
 \label{sec:lit_estimation}
@@ -374,7 +399,7 @@ estimation from liquid futures contracts~\cite{Ribeiro2004A}.
 
 Commodity modelling falls victim to this as many of the state variables which make up modern models are inherently invisible to the market~\cite{Ribeiro2004A}. The most common are the true spot price, instantaneous convenience yield and the long-term equilibrium price. Early attempts to model commodity dynamics tried to bypass this by using the nearest to maturity futures contract as a proxy for the spot price and pairs of contracts to estimate the convenience yield~\cite{Schwartz1997TheHedging}.
 
-Modern approaches apply Kalman filters to mathematically reconstruct these hidden state variables by casting the models into the \textit{state space}, whereby the unobservable state variables, known to evolve via a Markovian process, can be easily identified~\cite{Schwartz1997TheHedging} via recursive estimation. Schwartz is credited with standardising the estimation of these latent states using the classical Kalman filter, casting the log-futures prices as a linear measurement equation driven by this state transition process~\cite{Schwartz1997TheHedging}. The state vector is estimated through a prediction and correction phase. The prediction phase \textcolor{red}{\textbf{[TODO-FIX: sentence terminates mid-clause.]}}
+Modern approaches apply KFs to mathematically reconstruct these hidden state variables by casting the models into the \textit{state space}, whereby the unobservable state variables, known to evolve via a Markovian process, can be easily identified~\cite{Schwartz1997TheHedging} via recursive estimation. Schwartz is credited with standardising the estimation of these latent states using the classical KF, casting the log-futures prices as a linear measurement equation driven by this state transition process~\cite{Schwartz1997TheHedging}. The state vector is estimated through a prediction and correction phase. The prediction phase \textcolor{red}{\textbf{[TODO-FIX: sentence terminates mid-clause.]}}
 
 They become an optimal solution due to the linear and Gaussian assumptions present in many of the early models. Since Schwartz's original paper~\cite{Schwartz1997TheHedging}, these techniques have evolved to address more complex multi-factor models and to exploit advances in deep learning. One such example is the Extended Kalman Filter (EKF), which allowed researchers to solve non-linear filtering problems, outperforming methods such as Maximum Likelihood Estimation, which produced strongly biased parameters for complex systems~\cite{Liu2009No-ArbitrageStructures}.
 
@@ -399,7 +424,7 @@ They become an optimal solution due to the linear and Gaussian assumptions prese
 
 The Finite Element Method (FEM) and similar numerical methods solve `well-posed' problems, where complete knowledge of system parameters, boundary conditions, and initial conditions is available~\cite{Toscano2024FromLearning}. Real-world scenarios are rarely well-posed, and sparse data limits FEM's efficacy~\cite{Toscano2024FromLearning}.
 
-Physics-Informed Neural Networks (PINNs)~\cite{Raissi2019Physics-informedEquations} address this by embedding known physical laws, expressed as PDEs, directly into a neural network's loss function. Unlike traditional data-hungry, black-box machine learning, PINNs operate as `grey boxes': predictions are constrained to obey the system's governing physics, substantially reducing data requirements~\cite{Raissi2019Physics-informedEquations, Toscano2024FromLearning}.
+PINNs~\cite{Raissi2019Physics-informedEquations} address this by embedding known physical laws, expressed as PDEs, directly into a neural network's loss function. Unlike traditional data-hungry, black-box machine learning, PINNs operate as `grey boxes': predictions are constrained to obey the system's governing physics, substantially reducing data requirements~\cite{Raissi2019Physics-informedEquations, Toscano2024FromLearning}.
 
 PINNs' mesh-free formulation has enabled applications across turbulent mixing, defect detection, and earthquake modelling~\cite{Toscano2024FromLearning}. Since financial derivatives are likewise governed by PDEs, their extension to option pricing and risk management followed naturally~\cite{Dhiman2023PhysicsPricing, Hainaut2024OptionNetworks}.
 
@@ -418,7 +443,7 @@ For financial applications, simply constraining the model to the PDE loss is ins
 
 While PINNs have shown promise, their applications in finance remain nascent, with research currently restricted to standard equity and foreign exchange option pricing~\cite{Dhiman2023PhysicsPricing}. 
 
-The preceding research by~\cite{Hoshisashi2024Whack-a-moleSurface} extended the Derivative-Constrained PINN (DC-PINN) framework of~\cite{Hoshisashi2024Physics-InformedPDEs} to include \textit{online incremental learning}. Their algorithm, Whack-a-mole Online Learning (WamOL), combines three "whacks" in the optimisation process, two of which were already present in the original DC-PINN formulation. The first whack applies self-adaptive weights, which intensify the pointwise gradients of individual losses within each loss category. The second whack resolves the scale invariance problem across the categorised losses, mitigating epoch-to-epoch fluctuation in gradient magnitude between terms. The third whack introduces online incremental learning: a time-decay weighting scheme that reweights the data-misfit loss as new observations arrive, triggering recalibration when prediction error exceeds a threshold. This thesis adopts the first two whacks, since the term-structure inversion problem considered here is not an intraday streaming-calibration task; incorporating the third whack for periodic recalibration as new futures data arrives is left as potential future work. The composite loss underlying these two whacks, following~\cite{Hoshisashi2024Physics-InformedPDEs}, is given by
+The preceding research by~\cite{Hoshisashi2024Whack-a-moleSurface} extended the DC-PINN framework of~\cite{Hoshisashi2024Physics-InformedPDEs} to include \textit{online incremental learning}. Their algorithm, WamOL, combines three "whacks" in the optimisation process, two of which were already present in the original DC-PINN formulation. The first whack applies self-adaptive weights, which intensify the pointwise gradients of individual losses within each loss category. The second whack resolves the scale invariance problem across the categorised losses, mitigating epoch-to-epoch fluctuation in gradient magnitude between terms. The third whack introduces online incremental learning: a time-decay weighting scheme that reweights the data-misfit loss as new observations arrive, triggering recalibration when prediction error exceeds a threshold. This thesis adopts the first two whacks, since the term-structure inversion problem considered here is not an intraday streaming-calibration task; incorporating the third whack for periodic recalibration as new futures data arrives is left as potential future work. The composite loss underlying these two whacks, following~\cite{Hoshisashi2024Physics-InformedPDEs}, is given by
 
 \begin{equation}
     \hat{\mathcal{L}} := \lambda_0 \hat{\mathcal{L}}_0 + \lambda_b \hat{\mathcal{L}}_b + \lambda_f \hat{\mathcal{L}}_f + \lambda_h \hat{\mathcal{L}}_h,
@@ -532,7 +557,7 @@ These analytical functions plug directly into our observation equation:
 \noindent
 This exponential-affine formula acts as our direct mathematical bridge, translating the hidden convenience yield $\convyield_t$ into the visible market futures price.
 
-We therefore entirely omit the PDE-residual loss typically synonymous with PINNs~\cite{Raissi2019Physics-informedEquations}. Because the closed-form formula (Eq.~\ref{eq:gs_futures}) perfectly satisfies the pricing PDE for any $\convyield_t$, a computed residual would be tautologically zero and provide no training signal. Instead of softly encouraging the network to rediscover this known physics via a penalty~\cite{Raissi2019Physics-informedEquations, Hoshisashi2024Physics-InformedPDEs}, we structurally enforce it by embedding $A(\tau)$ and $B(\tau)$ directly into the network as an analytical pricing transform. This frees the network to focus purely on recovering the latent convenience-yield state. Finally, this exact Gibson--Schwartz solution serves as our analytical benchmark, generates the synthetic Monte Carlo data (\S~\ref{sec:experimental_design}), and defines the measurement equations for both baselines (\S\S~\ref{sec:ls_baseline} and~\ref{sec:kalman}).
+We therefore entirely omit the PDE-residual loss typically synonymous with PINNs~\cite{Raissi2019Physics-informedEquations}. Because the closed-form formula (Eq.~\ref{eq:gs_futures}) perfectly satisfies the pricing PDE for any $\convyield_t$, a computed residual would be tautologically zero and provide no training signal. Instead of softly encouraging the network to rediscover this known physics via a penalty~\cite{Raissi2019Physics-informedEquations, Hoshisashi2024Physics-InformedPDEs}, we structurally enforce it by embedding $A(\tau)$ and $B(\tau)$ directly into the network as an analytical pricing transform. This frees the network to focus purely on recovering the latent convenience-yield state. Finally, this exact GS solution serves as our analytical benchmark, generates the synthetic Monte Carlo data (\S~\ref{sec:experimental_design}), and defines the measurement equations for both baselines (\S\S~\ref{sec:ls_baseline} and~\ref{sec:kalman}).
 
 \subsection{Identifiability of the Risk-Neutral Parameters}
 \label{sec:identifiability}
@@ -568,7 +593,7 @@ the coefficients in Eq.~\ref{eq:A_basis} simplify to:
 
 Because the coefficients $c_{1,2,3}$ (and thus $A(\tau)$) depend on $\psi_{\mathbb{Q}}$ solely through the tuple $(\kappa, \sigma_2, m)$, and $B(\tau)$ depends solely on $\kappa$, only three of the five parameters can be recovered from a futures panel. Consequently, $\sigma_1$, $\rho$, and $\longrun^{\mathbb{Q}}$ are individually non-identifiable from price data alone. Any parameter vectors sharing the same $(\kappa, \sigma_2, m)$ will generate identical curves at every maturity and date under zero observation noise.
 
-This non-identifiability is a fundamental property of the futures price, bounding all methods including the Kalman filter (\S~\ref{sec:kalman}). Disagreement on $\sigma_1$, $\rho$, or $\longrun^{\mathbb{Q}}$ individually is uninformative because the data only pins down $(\kappa,\sigma_2,m)$.
+This non-identifiability is a fundamental property of the futures price, bounding all methods including the KF (\S~\ref{sec:kalman}). Disagreement on $\sigma_1$, $\rho$, or $\longrun^{\mathbb{Q}}$ individually is uninformative because the data only pins down $(\kappa,\sigma_2,m)$.
 
 However, this limitation does not compromise our primary goal of recovering $\delta_t$. Because $B(\tau)$ depends solely on $\kappa$ and $A(\tau)$ remains constant across all dates, the date-to-date variation that identifies $\delta_t$ survives intact as long as $(\kappa, \sigma_2, m)$ is correctly recovered. 
 
@@ -582,13 +607,37 @@ To resolve this redundancy, we propose the Affine-Partitioned, Physics-Enforced 
 
 The architecture consists of a single path network, $\hat{\delta}_\phi: t \mapsto \hat{\delta}_\phi(t)$, mapping calendar time directly to the estimated convenience yield. Critically, $\hat{\delta}_\phi$ takes no futures data as input; the inversion is achieved entirely through the training objective rather than the network's forward pass. We detail the architecture below, deferring the composite loss function to \S~\ref{sec:multi_obj}.
 
+$\hat{\delta}_\phi$ is a standard feed-forward MLP: three hidden layers of 32 units each with $\tanh$ activations, and a single linear output unit, taking only normalised calendar time as input. Table~\ref{tab:network_arch} gives the full specification. The \texttt{Dense}/\texttt{MLP} module, the Adam optimiser, and the WamOL gradient-norm loss-balancing scheme (\S~\ref{sec:multi_obj}) are all adapted from the WamOL framework of Hoshisashi et al.~\cite{Hoshisashi2024Physics-InformedPDEs, Hoshisashi2024Whack-a-moleSurface}, built to calibrate a Dupire local-volatility surface from three inputs (log-moneyness, time-to-maturity, calendar time) to a non-negative implied volatility. Our adaptation resizes their network to better suit the problem setting: $\hat{\delta}_\phi$ solves a lower-dimensional problem than that in~\cite{Hoshisashi2024Whack-a-moleSurface}, mapping only a single scalar (time) to a sing;e scalar ($\hat{\delta}$, we therefore use a shallower, narrower network, three layers of 32 units against their four layers of 64, and drop their output activation entirely, since $\hat{\delta}_\phi$ must be free to take either sign, unlike an implied volatility that Hoshisashi et al.\ constrain to be non-negative with a softplus. The final network consists of 2{,}209 parameters, which is already vastly overspecified relative to the small number of degrees of freedom in $\delta_t$'s own OU dynamics (Eq.~\ref{sde2}), so no further architecture search was performed.
+
+\begin{table}[htbp]
+\centering
+\footnotesize
+\caption{Path-network architecture and optimisation, contrasted with the WamOL framework (Hoshisashi et al.~\cite{Hoshisashi2024Physics-InformedPDEs, Hoshisashi2024Whack-a-moleSurface}) this work adapts its network code, optimiser, and gradient-balancing scheme from.}
+\label{tab:network_arch}
+\begin{tabular}{lll}
+\toprule
+ & AP-PEN (this work) & WamOL (Hoshisashi et al.~\cite{Hoshisashi2024Whack-a-moleSurface}) \\
+\midrule
+Input & Normalised time $t/T$ (1D) & Log-moneyness, $\tau$, calendar time (3D) \\
+Hidden layers & 3 & 4 \\
+Units per hidden layer & 32 & 64 \\
+Hidden activation & $\tanh$ & $\tanh$ \\
+Output & $\hat{\delta}_\phi(t)$, linear (signed) & Implied volatility, softplus ($\geq 0$) \\
+Weight init & Glorot normal & Glorot normal \\
+Optimiser & Adam & Adam + weight decay \\
+Learning rate & $9.4\times10^{-3}$, decay $0.82$ every $2{,}657$ steps & $10^{-3}$, decay $0.9$ every $1{,}000$ steps \\
+Trainable parameters & 2{,}209 & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 The model takes two primary numerical inputs alongside a set of globally shared parameters. First, the observed data panel: daily records $(S_i, t_i, \{F^{\text{obs}}_{i,k}\}_{k=1}^{N_\tau})$ for $i = 1, \dots, n$ (\S~\ref{sec:experimental_design} details both the synthetic and real data formulations). Second, a fixed maturity grid $\{\tau_k\}_{k=1}^{N_\tau}$ that assigns a single time-to-maturity to each contract slot $k$, constant across all observation dates $i$.
 
 We learn the shared parameters $\psi = \{\kappa, \sigma_1, \sigma_2, \rho, \alpha^{\mathbb{P}}\}$ alongside the network weights $\phi$. The risk premium $\lambda_2$ is fixed, while the interest rate $r_i$ enters as observed per-date data for the real panel but remains constant for synthetic experiments (\S~\ref{sec:experimental_design}). 
 
 Crucially, we avoid learning the risk-neutral long-run level $\alpha^{\mathbb{Q}}$ directly. Because $\alpha^{\mathbb{P}}$ and $\lambda_2$ interact solely via the measure change $\alpha^{\mathbb{Q}} = \alpha^{\mathbb{P}} - \sigma_2\lambda_2/\kappa$ (Appendix~\ref{app:gs_derivation}), fitting $\alpha^{\mathbb{Q}}$ would create an underdetermined system of infinite $(\alpha^{\mathbb{P}}, \lambda_2)$ pairs. Fixing $\lambda_2$ exogenously breaks this degeneracy, allowing us to derive $\alpha^{\mathbb{Q}}$ exactly from the learned $\alpha^{\mathbb{P}}$ at every step.
 
-To test robustness to misspecified risk premiums, our synthetic experiments generate data with $\lambda_2 = 0.10$ but train using $\lambda_2^{\text{fixed}} = 0.13$ (+30\%). For real WTI data, we ensure a fair comparison by fixing $\lambda_2$ to the Kalman filter's MLE estimate.
+To test robustness to misspecified risk premiums, our synthetic experiments generate data with $\lambda_2 = 0.10$ but train using $\lambda_2^{\text{fixed}} = 0.13$ (+30\%). For real WTI data, we ensure a fair comparison by fixing $\lambda_2$ to the KF's MLE estimate.
 
 Several parameters require strict physical bounds: positive volatilities, $\sigma_1, \sigma_2 > 0$; valid correlations, $\rho \in [-1, 1]$; and strictly positive mean reversion, $\kappa > 0$. To enforce these realities during unconstrained optimisation, we transform $\sigma_1$ and $\sigma_2$ via a softplus, $\rho$ via $\tanh$, and $\alpha^{\mathbb{P}}$ via the identity. For the mean-reversion rate, we apply a floored softplus: $\kappa = 0.1 + \mathrm{softplus}(\cdot)$.
 
@@ -820,7 +869,7 @@ dates. A network trained on $t \mapsto \hat\delta_\phi(t)$ across the full
 sample is, by contrast, structurally capable of pooling information across
 dates through its own inductive bias~\cite{rahaman2019spectral}, and can additionally absorb the DC-PINN
 hinge losses (\S~\ref{sec:constraints}) directly on the recovered path~\cite{Hoshisashi2024Physics-InformedPDEs},
-which the Kalman filter's linear-Gaussian ~\cite{krul2008calibration} (\S~\ref{sec:kalman})
+which the KF's linear-Gaussian ~\cite{krul2008calibration} (\S~\ref{sec:kalman})
 cannot accommodate without losing tractability. Whether this pooling capacity
 yields a materially better estimate of $\delta_t$ than the per-date baseline
 (formalised as an evaluated benchmark in \S~\ref{sec:ls_baseline})
@@ -985,7 +1034,7 @@ When the no-arbitrage terms are active, $\lambda_{h,\text{cac}}$, $\lambda_{h,\t
 \subsection{Closed-Form Least-Squares Baseline}
 \label{sec:ls_baseline}
 
-Because $\ln \hat{F}$ is linear in $\delta_t$ (Eq.~\ref{eq:pricing_transform}), the inversion admits a closed-form solution at each date for any fixed $\psi$. Minimising the log-price residual (Eq.~\ref{eq:data-loss}) over the scalar $\delta_t$ yields the per-date ordinary least-squares estimate:
+Because $\ln \hat{F}$ is linear in $\delta_t$ (Eq.~\ref{eq:pricing_transform}), the inversion admits a closed-form solution at each date for any fixed $\psi$. Minimising the log-price residual (Eq.~\ref{eq:data-loss}) over the scalar $\delta_t$ yields the per-date ordinary least-squares (LS) estimate:
 \begin{equation}
   \label{eq:ls_delta}
   \hat{\delta}^{\text{LS}}_t
@@ -1000,7 +1049,7 @@ This benchmark serves as a natural control to test whether the neural parameteri
 \subsection{Kalman Filter Baseline}
 \label{sec:kalman}
 
-Because the path network $\hat{\delta}_\phi$ trains on the full sample, AP-PEN acts as a \textit{smoother} with access to future information. In contrast, the Kalman filter (KF) baseline~\cite{Schwartz1997TheHedging} is causal, using information only up to $t_i$. Any performance gap between the methods stems partly from this asymmetry. A true like-for-like comparison requires the non-causal Rauch--Tung--Striebel (RTS) smoother~\cite{rauch1965maximum}, which we leave to future work (\S~\ref{sec:conclusion}).
+Because the path network $\hat{\delta}_\phi$ trains on the full sample, AP-PEN acts as a \textit{smoother} with access to future information. In contrast, the KF baseline~\cite{Schwartz1997TheHedging} is causal, using information only up to $t_i$. Any performance gap between the methods stems partly from this asymmetry. A true like-for-like comparison requires the non-causal Rauch--Tung--Striebel (RTS) smoother~\cite{rauch1965maximum}, which we leave to future work (\S~\ref{sec:conclusion}).
 
 Our KF implementation follows Krul~\cite{krul2008calibration}. The state is the joint latent pair $(x_t, \delta_t)$, where $x_t=\ln S_t$. Both are inferred solely from the futures curve, using the true spot price only to initialise $x_0$. The transition equation applies the Euler--Maruyama discretisation~\cite{maruyama1955continuous} from our Monte Carlo generation (\S~\ref{sec:experimental_design}), evaluated over true calendar steps. The measurement equation uses the log-form of the pricing transform (Eq.~\ref{eq:pricing_transform}); because this is exactly linear in $(x_t, \delta_t)$, no Extended or Unscented KF is required. 
 
@@ -1029,11 +1078,11 @@ Evaluating the closed-form pricing equation (Eq.~\ref{eq:pricing_transform}) at 
 \label{eq:noise-model}
 \end{equation}
 
-Because the closed-form term-structure slope is an exact affine function of $\delta_t$, this noise is the sole source of ambiguity when recovering $\delta_t$ from the panel. Figure~\ref{fig:mc_identifiability_scatter} overlays the noisy slope on this exact relationship, demonstrating that the inversion problem remains well posed. We simulate $100$ paths over a $10$-year horizon with an initial spot $S_0 = 100$. Physical Gibson--Schwartz parameters are drawn from~\cite{Schwartz1997TheHedging}, while $r$ and $\lambda_2$ are fixed estimates. Table~\ref{tab:gs-mc-params} details the complete simulation configuration.
+Because the closed-form term-structure slope is an exact affine function of $\delta_t$, this noise is the sole source of ambiguity when recovering $\delta_t$ from the panel. Figure~\ref{fig:mc_identifiability_scatter} overlays the noisy slope on this exact relationship, demonstrating that the inversion problem remains well posed. We simulate $100$ paths over a $10$-year horizon with an initial spot $S_0 = 100$. Physical GS parameters are drawn from~\cite{Schwartz1997TheHedging}, while $r$ and $\lambda_2$ are fixed estimates. Table~\ref{tab:gs-mc-params} details the complete simulation configuration.
 
 \begin{table}[htbp]
 \centering
-\caption{Gibson–Schwartz parameters used for Monte Carlo synthetic data generation}
+\caption{GS parameters used for Monte Carlo synthetic data generation}
 \label{tab:gs-mc-params}
 \begin{threeparttable}
 \resizebox{\textwidth}{!}{%
@@ -1068,13 +1117,13 @@ $\rho$     & Correlation, $dW_1$ and $dW_2$         & $0.766$ & & $S_0$         
 \centering
 \begin{subfigure}[t]{0.48\textwidth}
     \centering
-    \includegraphics[height=4.5cm]{figures/methodology/mc2c_term_structure_3d.pdf}
+    \includegraphics[width=\linewidth]{figures/methodology/mc2c_term_structure_3d.pdf}
     \subcaption{}
     \label{fig:mc_term_structure_3d}
 \end{subfigure}\hfill
 \begin{subfigure}[t]{0.48\textwidth}
     \centering
-    \includegraphics[height=4.5cm]{figures/results/mc3b_identifiability_scatter.pdf}
+    \includegraphics[width=\linewidth]{figures/results/mc3b_identifiability_scatter.pdf}
     \subcaption{}
     \label{fig:mc_identifiability_scatter}
 \end{subfigure}
@@ -1082,9 +1131,9 @@ $\rho$     & Correlation, $dW_1$ and $dW_2$         & $0.766$ & & $S_0$         
 \label{fig:mc_term_structure_and_slope}
 \end{figure}
 
-\paragraph{Evaluation Scheme.} Our evaluation spans two phases: Phase 1 validates against the Monte Carlo ground truth $(\delta_t, S_t)$ (Eqs.~\ref{eq:x_discrete_em}--\ref{sde2}), while Phase 2 tests out-of-sample pricing on a real WTI calendar holdout (\S\ref{sec:real_data}). We compare six models (an MLP, AP-PEN without loss balancing, standard AP-PEN, AP-PEN with no-arbitrage hinge terms, the least-squares baseline of \S~\ref{sec:ls_baseline}, and a Kalman filter) across state RMSE, constraint activity rate, price RMSE, benchmark correlation, and convergence diagnostics.
+\paragraph{Evaluation Scheme.} Our evaluation spans two phases: Phase 1 validates against the Monte Carlo ground truth $(\delta_t, S_t)$ (Eqs.~\ref{eq:x_discrete_em}--\ref{sde2}), while Phase 2 tests out-of-sample pricing on a real WTI calendar holdout (\S\ref{sec:real_data}). We compare six models (an MLP, AP-PEN without loss balancing, standard AP-PEN, AP-PEN with no-arbitrage hinge terms, the LS baseline of \S~\ref{sec:ls_baseline}, and a KF) across state RMSE, constraint activity rate, price RMSE, benchmark correlation, and convergence diagnostics.
 
-To ensure robustness, all neural network results are reported as the mean $\pm$ standard deviation across five independent random seeds ($42, 7, 123, 2024, 31337$). The least-squares and Kalman baselines are deterministic and therefore carry no seed variance.
+To ensure robustness, all neural network results are reported as the mean $\pm$ standard deviation across five independent random seeds ($42, 7, 123, 2024, 31337$). The LS and KF baselines are deterministic and therefore carry no seed variance.
 
 \paragraph{Real WTI panel.} We use dated quarterly WTI futures (Mar/Jun/Sep/Dec, Cushing delivery) instead of rolling generics to compute an exact time-to-maturity $\tau = (T-t)/365$.\footnote{Entitlement restrictions blocked chain expansion in Refinitiv Workspace~\cite{refinitiv2026eikon}, requiring individual contract queries. Archive RIC suffixes vary: single-digit year with \texttt{\^{}1} (2015--2019), single-digit year with \texttt{\^{}2} (2020--2023), and two-digit year with \texttt{\^{}2} (2024--2026).} Expiries follow the CME last-trading-day rule, perfectly matching Refinitiv's expiry field across 36 cross-validated contracts~\cite{refinitiv2026eikon}. Spot prices and financing rates come from the CLc1 continuation and FRED DGS3MO series~\cite{refinitiv2026eikon, fred2026dgs3mo}, respectively. We drop the 2020-04-20 observation because its $-\$37.63$ front-month print is a liquidation artefact, and several model constructs require $S_t > 0$.
 
@@ -1143,7 +1192,7 @@ Risk-free rate $r$                  & $[0.000,\ 0.0563]$, mean $0.0208$ & $[0.00
 
 \section{Results and Discussion}
 \label{sec:results}
-The evaluation proceeds in two phases: Phase 1 trains on Monte Carlo-simulated data with known Gibson--Schwartz parameters (Table~\ref{tab:gs-mc-params}), allowing exact error measurement across four model variants (an MLP, AP-PEN without loss balancing, vanilla AP-PEN, and AP-PEN with no-arbitrage constraints), while Phase 2 trains on real WTI futures data, evaluating performance against a Kalman filter baseline since true latent states are unobservable. At each phase the model variants are contrasted with the least-squares approach detailed in~\S\ref{sec:ls_baseline}, and throughout this section we evaluate both the recovered latent state path $\hat{\delta}$ and the structural parameters $\psi$, as well as the efficacy of the cash-and-carry, reverse cash-and-carry, and convenience yield floor constraints, noting that a model's accuracy in one does not guarantee success in the other.
+The evaluation proceeds in two phases: Phase 1 trains on Monte Carlo-simulated data with known GS parameters (Table~\ref{tab:gs-mc-params}), allowing exact error measurement across four model variants (an MLP, AP-PEN without loss balancing, vanilla AP-PEN, and AP-PEN with no-arbitrage constraints), while Phase 2 trains on real WTI futures data, evaluating performance against a KF baseline since true latent states are unobservable. At each phase the model variants are contrasted with the LS approach detailed in~\S\ref{sec:ls_baseline}, and throughout this section we evaluate both the recovered latent state path $\hat{\delta}$ and the structural parameters $\psi$, as well as the efficacy of the cash-and-carry, reverse cash-and-carry, and convenience yield floor constraints, noting that a model's accuracy in one does not guarantee success in the other.
 
 \subsection{Synthetic Validation}
 \label{sec:synthetic}
@@ -1198,7 +1247,7 @@ Closed-form LS (exact MLE) & $\mathbf{0.00873}$ & $\mathbf{0.9994}$ & $\mathbf{1
 }
 \end{table}
 
-While the hidden state recovery succeeds, learning the underlying structural parameters ($\psi$) exposes a structural identifiability limit (Appendix~\ref{app:supplementary}, Fig.~\ref{fig:param_recovery_appendix}). The pricing transform (Eq.~\ref{eq:pricing_transform}) bundles $\sigma_1$ and $\rho$ together with $\sigma_2$ through the cross-term $\rho\sigma_1\sigma_2$, and drops the isolated spot volatility entirely, since $\partial^2\hat F/\partial S^2 = 0$. Consequently, these unidentified parameters ($\sigma_1$, $\rho$, $\rho\sigma_1\sigma_2$, $\alpha^{\mathbb{Q}}$) show massive coefficients of variation across draws, from $49\%$ to $265\%$ (Table~\ref{tab:synth_psi_multidraw}): precisely the degeneracy predicted analytically in \S~\ref{sec:identifiability}, and not a symptom of insufficient training. In stark contrast, the identified coordinates ($\kappa$, $\sigma_2$, and $m$) converge tightly to their true values, with coefficients of variation between $1.3\%$ and $9.0\%$, confirming empirically that a futures panel determines exactly these three quantities and no more.
+While the hidden state recovery succeeds, learning the underlying structural parameters $\psi$ exposes a structural identifiability limit (Appendix~\ref{app:supplementary}, Fig.~\ref{fig:param_recovery_appendix}). The pricing transform (Eq.~\ref{eq:pricing_transform}) bundles $\sigma_1$ and $\rho$ together with $\sigma_2$ through the cross-term $\rho\sigma_1\sigma_2$, and drops the isolated spot volatility entirely, since $\partial^2\hat F/\partial S^2 = 0$. Consequently, these unidentified parameters, $\sigma_1$, $\rho$, $\rho\sigma_1\sigma_2$, $\alpha^{\mathbb{Q}}$, show massive coefficients of variation across draws, from $49\%$ to $265\%$ (Table~\ref{tab:synth_psi_multidraw}): precisely the degeneracy predicted analytically in \S~\ref{sec:identifiability}, and not a symptom of insufficient training. In stark contrast, the identified coordinates $\kappa$, $\sigma_2$, and $m$ converge tightly to their true values, with coefficients of variation between $1.3\%$ and $9.0\%$, confirming empirically that a futures panel determines exactly these three quantities and no more.
 
 \begin{table}[h!]
 \centering
@@ -1238,15 +1287,15 @@ Table~\ref{tab:synth_psi_recovery} shows that introducing the no-arbitrage guard
 
 \subsection{Real WTI Application}
 \label{sec:real_data}
-The Kalman filter baseline successfully converges (log-likelihood $84{,}707.5$ over the $2{,}769$-date sample) and fits the observed WTI term structure well. The filter's one-step-ahead prediction error (innovation RMSE) is $0.026$ overall, decreasing from $0.054$ at the nearest maturity to $0.015$ at the furtherst. Crucially, its recovered $\hat\delta_t$ has a mean of $0.040$, a standard deviation of $0.108$, and ranges from $-0.293$ to $0.232$ across the sample.
+The KF baseline successfully converges (log-likelihood $84{,}707.5$ over the $2{,}769$-date sample) and fits the observed WTI term structure well. The filter's one-step-ahead prediction error (innovation RMSE) is $0.026$ overall, decreasing from $0.054$ at the nearest maturity to $0.015$ at the furtherst. Crucially, its recovered $\hat\delta_t$ has a mean of $0.040$, a standard deviation of $0.108$, and ranges from $-0.293$ to $0.232$ across the sample.
 
-Table~\ref{tab:real_kalman_comparison} and Fig.~\ref{fig:real2_pinn_vs_kalman} compare the $\hat{\delta}_t$ recovery of each model variant and the least-squares baseline against this Kalman benchmark across the sample period.
+Table~\ref{tab:real_kalman_comparison} and Fig.~\ref{fig:real2_pinn_vs_kalman} compare the $\hat{\delta}_t$ recovery of each model variant and the LS baseline against this KF benchmark across the sample period.
 
 \begin{table}[h!]
 \centering
-\caption{Recovered $\hat\delta_t$ against the Kalman filter benchmark on real
+\caption{Recovered $\hat\delta_t$ against the KF benchmark on real
 WTI, common dates (2015-01-05 to 2026-02-19). Correlation/RMSE are against the
-Kalman filtered path; range/mean/std describe each method's own recovered
+KF-filtered path; range/mean/std describe each method's own recovered
 series in isolation.}
 \label{tab:real_kalman_comparison}
 \resizebox{\textwidth}{!}{%
@@ -1254,7 +1303,7 @@ series in isolation.}
 \toprule
 Method & corr.\ vs.\ KF & RMSE vs.\ KF & $\hat\delta_t$ range & mean & std \\
 \midrule
-Kalman filter (reference) & -- & -- & $[-0.293,\ 0.232]$ & $0.040$ & $0.108$ \\
+KF (reference) & -- & -- & $[-0.293,\ 0.232]$ & $0.040$ & $0.108$ \\
 \midrule
 Constant at the KF mean (null) & -- & $0.108$ & -- & $0.040$ & $0$ \\
 \midrule
@@ -1267,14 +1316,14 @@ AP-PEN (ARB)  & $\mathbf{0.9469 \pm 0.0034}$ & $\mathbf{0.0348 \pm 0.0010}$ & $[
 }
 \end{table}
 
-All model variants achieve over 90\% correlation with the Kalman filter, but this scale-free metric masks significant amplitude disagreements. The null baseline (predicting a constant fixed at the filter's own mean) yields an RMSE of $0.108$. The closed-form LS, MLP, and unconstrained AP-PEN all match or exceed this error, meaning none of them beat predicting a simple constant on RMSE despite correlations above $0.91$. AP-PEN (ARB) is the exception: its RMSE of $0.035$ is roughly a third of the null's, decisively the best score in the table, and comes from confining the recovered convenience yield close to its guardrail bounds rather than tracking the filter's amplitude. These no-arbitrage and economic guardrails were inert on synthetic data but essential here: without them, every other variant produced implausible extremes, with unconstrained AP-PEN and MLP reaching $\hat{\delta}_t$ values of $-1.26$ and $-1.28$ respectively during the April 2020 dislocation, and the exact closed-form MLE breaching even further, to $-1.65$, on the same dates.
+All model variants achieve over 90\% correlation with the KF, but this scale-free metric masks significant amplitude disagreements. The null baseline (predicting a constant fixed at the filter's own mean) yields an RMSE of $0.108$. The closed-form LS, MLP, and unconstrained AP-PEN all match or exceed this error, meaning none of them beat predicting a simple constant on RMSE despite correlations above $0.91$. AP-PEN (ARB) is the exception: its RMSE of $0.035$ is roughly a third of the null's, decisively the best score in the table, and comes from confining the recovered convenience yield close to its guardrail bounds rather than tracking the filter's amplitude. These no-arbitrage and economic guardrails were inert on synthetic data but essential here: without them, every other variant produced implausible extremes, with unconstrained AP-PEN and MLP reaching $\hat{\delta}_t$ values of $-1.26$ and $-1.28$ respectively during the April 2020 dislocation, and the exact closed-form MLE breaching even further, to $-1.65$, on the same dates.
 
 \begin{figure}[h!]
     \centering
     \begin{subfigure}{\textwidth}
         \centering
         \includegraphics[width=\linewidth]{figures/results/real3_constraint_activity.pdf}
-        \caption{Cash-and-carry ceiling breaches by date. The model-free shaded series is computed directly from observables $(F^{\mathrm{obs}}, S_t, \tau, r_t)$; lower ticks mark dates where AP-PEN (ARB) breaches $\delta_{\min}$.}
+        \caption{Cash-and-carry ceiling breaches by date. The model-free shaded series is computed directly from observables $(F^{\mathrm{obs}}, S_t, \tau, r_t)$. The thick blue line, AP-PEN (ARB) with the hinge losses switched on, sits exactly at zero across the entire sample: enforcing the cash-and-carry hinge means the model never breaches the ceiling, so its breach count is identically zero throughout, unlike the unconstrained variant (violet, dash-dot), which tracks the observed breaches closely. The small blue marker beneath the axis, near 2020, flags the separate dates on which AP-PEN (ARB)'s recovered $\hat{\delta}_t$ itself falls below the convenience-yield floor $\delta_{\min}$; this is a statement about the latent state rather than about price breaches, so it is shown as a rug below the axis rather than as a curve sharing the $y$-axis units.}
         \label{fig:constraint_activity}
     \end{subfigure}
 
@@ -1283,7 +1332,7 @@ All model variants achieve over 90\% correlation with the Kalman filter, but thi
     \begin{subfigure}{\textwidth}
         \centering
         \includegraphics[width=\linewidth]{figures/results/real2_pinn_vs_kalman.pdf}
-        \caption{Recovered $\hat{\delta}_t$ across model variants compared against the benchmark Kalman filter path.}
+        \caption{Recovered $\hat{\delta}_t$ across model variants compared against the benchmark KF path.}
         \label{fig:real2_pinn_vs_kalman}
     \end{subfigure}
 
@@ -1291,14 +1340,14 @@ All model variants achieve over 90\% correlation with the Kalman filter, but thi
     \label{fig:real_results_combined}
 \end{figure}
 
-The magnitude of this divergence is best understood through the Gibson--Schwartz economic dynamics. Unlike CIR-style models~\cite{Liu2009No-ArbitrageStructures} that enforce $\delta \ge 0$ by construction, the Ornstein--Uhlenbeck process~\cite{uhlenbeck1930theory} is unbounded. Section~\ref{sec:pinn_inversion} deliberately avoids imposing an idealised non-negativity floor on $\hat{\delta}_t$ because deep-contango regimes, like the one experienced in April 2020, actively produce negative convenience yields. The Kalman filter baseline confirmed this architectural choice, with its own recovered $\hat{\delta}_t$ dipping to -0.293 during that same period. Conversely, the unconstrained variants overshoot by roughly an order of magnitude, with the vanilla AP-PEN and MLP models recovering -1.26 and -1.65, respectively. This suggests they are not simply finding a more extreme answer, but capturing a different phenomenon entirely. The economic literature supports this: the April 2020 WTI anomaly was driven by logistical factors (specifically a demand shock, oversupply, and a physical storage shortage at the Cushing delivery hub~\cite{Burns2022Arbitrage}) rather than a fundamental repricing of the value of holding oil. Notably, Brent crude, which shares WTI's convenience-yield economics but lacks its Cushing-specific delivery obligations, never went negative~\cite{FernandezPerez2022Negative}. Ultimately, the unconstrained variants appear to improperly absorb a localised market-microstructure event into a state variable never designed to carry it.
+The magnitude of this divergence is best understood through the GS economic dynamics. Unlike CIR-style models~\cite{Liu2009No-ArbitrageStructures} that enforce $\delta \ge 0$ by construction, the Ornstein--Uhlenbeck process~\cite{uhlenbeck1930theory} is unbounded. Section~\ref{sec:pinn_inversion} deliberately avoids imposing an idealised non-negativity floor on $\hat{\delta}_t$ because deep-contango regimes, like the one experienced in April 2020, actively produce negative convenience yields. The KF baseline confirmed this architectural choice, with its own recovered $\hat{\delta}_t$ dipping to -0.293 during that same period. Conversely, the unconstrained variants overshoot by roughly an order of magnitude, with the vanilla AP-PEN and MLP models recovering -1.26 and -1.65, respectively. This suggests they are not simply finding a more extreme answer, but capturing a different phenomenon entirely. The economic literature supports this: the April 2020 WTI anomaly was driven by logistical factors (specifically a demand shock, oversupply, and a physical storage shortage at the Cushing delivery hub~\cite{Burns2022Arbitrage}) rather than a fundamental repricing of the value of holding oil. Notably, Brent crude, which shares WTI's convenience-yield economics but lacks its Cushing-specific delivery obligations, never went negative~\cite{FernandezPerez2022Negative}. Ultimately, the unconstrained variants appear to improperly absorb a localised market-microstructure event into a state variable never designed to carry it.
 
 The necessity of physical guardrails to prevent this absorption is evident in the activity of the inequality constraints (Fig.~\ref{fig:constraint_activity}). On the observed panel, the raw data violates the cash-and-carry ceiling on 1.84\% of the 22,160 points (across 135 dates), primarily concentrated during the 2015--2016 shale glut and the 2020 storage-exhaustion events~\cite{fattouh2016oilfall, gilje2024benchmarks}. Attempting to faithfully fit this data, the unconstrained variants (MLP, vanilla AP-PEN) slightly amplify the error, yielding violation rates of 1.98\% and 2.00\%. Once the constraints are activated in AP-PEN (ARB), cash-and-carry violations drop to exactly zero, and violations of the convenience-yield floor fall from roughly 7\% to 0.69\%. Whether a constraint earns its keep is therefore decidable in advance: the violation rate is computable directly from the observed quantities $(F^{\mathrm{obs}}, S_t, \tau, r_t)$ before any model is fitted. On real-market data, the guardrails clearly justify their inclusion, but only because the underlying data violates them. Because the squared hinge loss has zero gradient wherever a bound is already satisfied, market conditions with no violations would render the no-arbitrage variant identical to its unconstrained twin. Furthermore, because the reverse cash-and-carry constraint is never triggered for any model, only two of the three hinge terms actively shape the $\delta_t$ recovery.
 
 \begin{table}[h!]
 \centering
 \footnotesize
-\caption{Recovered structural parameters on real WTI. Kalman is the
+\caption{Recovered structural parameters on real WTI. KF is the
 full-sample MLE (\S\ref{sec:kalman}); Closed-form LS is the profiled MLE of
 \S\ref{sec:ls_baseline}, estimating only the identified coordinates. The
 $\kappa$ floor is shown only for AP-PEN (ARB), the variant it binds on
@@ -1306,12 +1355,11 @@ $\kappa$ floor is shown only for AP-PEN (ARB), the variant it binds on
 panel (\S\ref{sec:identifiability}); place no economic reading on the lower
 block.}
 \label{tab:real_psi_pathology}
-\resizebox{\textwidth}{!}{%
 \begin{tabular}{lrrrrr}
 \toprule
 & & & & \multicolumn{2}{c}{AP-PEN (ARB)} \\
 \cmidrule(lr){5-6}
-Parameter & Kalman (MLE) & Closed-form LS & AP-PEN & unfloored & $\kappa_{\min}=0.1$ \\
+Parameter & KF (MLE) & Closed-form LS & AP-PEN & unfloored & $\kappa_{\min}=0.1$ \\
 \midrule
 $\kappa$      & $0.4257$ & $0.9512$ & $0.9301$ & $0.0028$ & $0.1002$ \\
 $\sigma_2$    & $0.1726$ & $0.5516$ & $0.5444$ & $0.0557$ & $0.0481$ \\
@@ -1322,11 +1370,10 @@ $\rho$        & $0.8883$ & --- & $0.9676$ & $-0.8198$ & $-0.0188$ \\
 $\alpha^{\mathbb{Q}}$ & $-0.0773$ & --- & $-0.2450$ & $-4.4599$ & $-0.0206$ \\
 $\alpha^{\mathbb{P}}$ & $0.1007$ & --- & $0.0120$ & $4.3741$ & $0.1900$ \\
 \bottomrule
-\end{tabular}%
-}
+\end{tabular}
 \end{table}
 
-Although Table~\ref{tab:real_kalman_comparison} shows strong path recovery for AP-PEN (ARB), Table~\ref{tab:real_psi_pathology} reveals severe underlying parameter pathologies, mirroring synthetic findings and the theoretical limits predicted in \S\ref{sec:identifiability}. When the hinge loss terms are active without parameter bounds, the mean-reversion speed $\kappa$ collapses to near zero ($0.0028$). Spot volatility $\sigma_1$ ($0.0051$) and correlation $\rho$ ($-0.8198$) also collapse, with a negative $\rho$ relative to every other calibration. While individual unidentifiable parameters carry little stand-alone meaning (\S\ref{sec:identifiability}), the simultaneous collapse of $\kappa$, $\sigma_1$, $\rho$, $\alpha^{\mathbb{Q}}$ ($-4.46$), and $m$ ($-4.54$) diagnoses a structural failure mode rather than arbitrary convergence among equivalent solutions. Imposing a lower bound $\kappa_{\min}=0.1$ causes the model to converge exactly onto the floor across five random restarts ($\kappa = 0.100 \pm 0.000$), confirming that the constraint mechanism drives this degeneracy rather than stochastic variation. Ultimately, AP-PEN (ARB) achieves the strongest Kalman $\delta_t$ recovery only by pushing parameters into a degenerate state, while pinning its recovered path directly against the lower boundary ($\hat{\delta}_t = -0.301 \approx \delta_{\min} = -0.30$) rather than finding a genuinely superior economic solution.
+Although Table~\ref{tab:real_kalman_comparison} shows strong path recovery for AP-PEN (ARB), Table~\ref{tab:real_psi_pathology} reveals severe underlying parameter pathologies, mirroring synthetic findings and the theoretical limits predicted in \S\ref{sec:identifiability}. When the hinge loss terms are active without parameter bounds, the mean-reversion speed $\kappa$ collapses to near zero ($0.0028$). Spot volatility $\sigma_1$ ($0.0051$) and correlation $\rho$ ($-0.8198$) also collapse, with a negative $\rho$ relative to every other calibration. While individual unidentifiable parameters carry little stand-alone meaning (\S\ref{sec:identifiability}), the simultaneous collapse of $\kappa$, $\sigma_1$, $\rho$, $\alpha^{\mathbb{Q}}$ ($-4.46$), and $m$ ($-4.54$) diagnoses a structural failure mode rather than arbitrary convergence among equivalent solutions. Imposing a lower bound $\kappa_{\min}=0.1$ causes the model to converge exactly onto the floor across five random restarts ($\kappa = 0.100 \pm 0.000$), confirming that the constraint mechanism drives this degeneracy rather than stochastic variation. Ultimately, AP-PEN (ARB) achieves the strongest KF $\delta_t$ recovery only by pushing parameters into a degenerate state, while pinning its recovered path directly against the lower boundary ($\hat{\delta}_t = -0.301 \approx \delta_{\min} = -0.30$) rather than finding a genuinely superior economic solution.
 
 
 \section{Future Work \& Wider Context}
@@ -1473,7 +1520,7 @@ Substituting the $\mathbb{Q}$-dynamics (Eqs.~\ref{eq:app_spot_Q}, \ref{eq:app_cy
   \end{aligned}
 \end{equation}
 \noindent
-A futures contract requires no initial investment, so $F$ must be a $\mathbb{Q}$-martingale: its drift vanishes, $\mathbb{E}^{\mathbb{Q}}[\mathrm{d}F] = 0$. Setting the bracket to zero gives the Gibson--Schwartz PDE,
+A futures contract requires no initial investment, so $F$ must be a $\mathbb{Q}$-martingale: its drift vanishes, $\mathbb{E}^{\mathbb{Q}}[\mathrm{d}F] = 0$. Setting the bracket to zero gives the GS PDE,
 \begin{equation}
   \label{eq:app_pde_calendar}
   \frac{\partial F}{\partial t}
@@ -1673,7 +1720,7 @@ Unlike $\lambda_1$, the convenience-yield risk premium $\lambda_2$ is not fixed 
   \longrun^{\mathbb{Q}} = \longrun^{\mathbb{P}} - \frac{\sigma_2\lambda_2}{\meanrev},
 \end{equation}
 \noindent
-recovering Eq.~\ref{eq:gs_cy}. Only the long-run level shifts ($\longrun^{\mathbb{P}} \to \longrun^{\mathbb{Q}}$); the mean-reversion speed $\meanrev$ and volatility $\sigma_2$ are unchanged. This completes the derivation of the risk-neutral system used throughout \S~\ref{sec:gs_model}.
+recovering Eq.~\ref{eq:gs_cy}. Only the long-run level shifts, $\longrun^{\mathbb{P}} \to \longrun^{\mathbb{Q}}$; the mean-reversion speed $\meanrev$ and volatility $\sigma_2$ are unchanged. This completes the derivation of the risk-neutral system used throughout \S~\ref{sec:gs_model}.
 
 \section{Training Algorithm}
 \label{app:algorithm}
@@ -1815,8 +1862,12 @@ but is not essential for the core narrative. Examples:
         \label{fig:pinn0c_training_hinges}
     \end{subfigure}
 
-    \caption{Training loss convergence across variants. Per-parameter recovery
-    curves for the same runs are in Appendix~\ref{app:supplementary},
+    \caption{Training loss convergence across variants. In (c), faint dotted
+    vertical lines mark the WamOL loss-balancer's gradient-norm reweighting
+    updates (the "whacks" of Whack-a-mole Online Learning~\cite{Hoshisashi2024Whack-a-moleSurface}),
+    which recur every 100 epochs for AP-PEN (ARB); each hinge-loss transient
+    coincides with several such updates. Per-parameter recovery curves for
+    the same runs are in Appendix~\ref{app:supplementary},
     Fig.~\ref{fig:param_recovery_appendix}.}
     \label{fig:training_losses}
 \end{figure}

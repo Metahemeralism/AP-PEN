@@ -246,6 +246,14 @@ def fig_training_sde():
     return _fig_training_channel("e_sde")
 
 
+WHACK_EVERY = 100  # epochs -- matches notebooks/AP-PEN.ipynb cell 19's
+# `if use_balancing and epoch % 100 == 0: l_ws = update_loss_weights(...)`,
+# the WamOL gradient-norm reweighting step ("whack-a-mole") that runs for
+# every balanced variant (AP-PEN, AP-PEN (ARB)). Not logged per-epoch in the
+# results pickle, but the schedule is a fixed constant, so the whack epochs
+# are exactly {0, 100, 200, ...} up to num_epochs -- nothing to reconstruct.
+
+
 def fig_training_hinges():
     """The three no-arbitrage hinges (e_cac/e_rcac/e_delta_floor), AP-PEN
     (ARB) only -- the other variants never train these. Raw (not smoothed):
@@ -265,6 +273,15 @@ def fig_training_hinges():
     e_cac = np.clip(np.array([h[2]["e_cac"] for h in hist]), LOG_FLOOR, None)
     e_rcac = np.clip(np.array([h[2]["e_rcac"] for h in hist]), LOG_FLOOR, None)
     e_floor = np.clip(np.array([h[2]["e_delta_floor"] for h in hist]), LOG_FLOOR, None)
+
+    # Whack markers first (low zorder): faint ticks, not full-height lines --
+    # 10 events across the 1000-epoch crop is legible; the same rug over the
+    # full 40k-epoch e_data/e_sde curves (pinn0a/b) would be 400 events and
+    # just read as a solid band, so it's deliberately left off those figures.
+    whack_epochs = np.arange(0, ARB_CROP + 1, WHACK_EVERY)
+    for we in whack_epochs:
+        ax.axvline(we, color=INK["secondary"], lw=0.8, ls=(0, (1, 1)), alpha=0.55, zorder=1)
+
     ax.plot(epochs[crop], e_cac[crop], color=MODEL_COLOUR["APPINN_ARB"],
             ls="solid", lw=1.4, zorder=3)
     ax.plot(epochs[crop], e_rcac[crop], color=MODEL_COLOUR["APPINN_ARB"],
@@ -277,7 +294,8 @@ def fig_training_hinges():
     ax.set_xlabel("epoch", fontsize=11)
     ax.annotate(r"$e_{\mathrm{cac}}$ solid, $e_{\mathrm{rcac}}$ dotted, "
                 r"$e_{\delta\mathrm{-floor}}$ dash-dot"
-                "\n(AP-PEN (ARB) only)",
+                "\n(AP-PEN (ARB) only)"
+                "\nfaint ticks: WamOL balancer updates (\"whacks\")",
                 xy=(0.97, 0.75), xycoords="axes fraction", color=INK["secondary"],
                 ha="right", va="center", fontsize=8)
 
