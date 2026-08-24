@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "gs-wamol"
 version = "0.1.0"
-description = "Gibson-Schwartz AC-PINN calibration with WAMOL loss balancing"
+description = "Gibson-Schwartz convenience-yield inversion (AP-PEN) with WamOL loss balancing"
 requires-python = ">=3.10"
 dependencies = [
     "jax",
@@ -19,11 +19,5 @@ dependencies = [
     "matplotlib",
 ]
 
-[project.optional-dependencies]
-dev = ["pytest", "pytest-cov"]
-
 [tool.setuptools.packages.find]
 where = ["src"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
