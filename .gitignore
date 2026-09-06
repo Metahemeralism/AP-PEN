@@ -60,8 +60,18 @@ src/gs_wamol/physics/*
 # README.md carries the orientation a reader needs; the thesis itself, the
 # working notes and the derivations PDF are all distributed separately.
 *.tex
+*.tex.bak*
 *.bib
 *.pdf
+*.cls
+*.sty
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
+*.bbl
+*.blg
 docs/
 
 # --- Development history (not supervisor-facing) ---
