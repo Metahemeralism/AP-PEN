@@ -74,5 +74,12 @@ src/gs_wamol/physics/*
 *.blg
 docs/
 
+# --- arXiv submission artefacts (built from the thesis source) ---
+# The .tex/.bbl inside arxiv_submission/ are already caught by the rules
+# above; these cover the directory itself and the built bundle.
+arxiv_submission/
+*.zip
+*.tar.gz
+
 # --- Development history (not supervisor-facing) ---
 notebooks/archive/
